@@ -1,0 +1,405 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Foodtruck Pricing</title>
+
+  <!-- optional: remove favicon 404 -->
+  <link rel="icon" href="data:,">
+
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+
+<body>
+  <div class="appShell">
+    <aside class="sidebar">
+      <h1 class="brand">Foodtruck<br/>Pricing</h1>
+
+      <nav class="nav">
+        <button class="tab isActive" data-tab="ingredients" type="button">Zutaten</button>
+        <button class="tab" data-tab="recipes" type="button">Rezepte</button>
+        <button class="tab" data-tab="costs" type="button">Fixkosten</button>
+        <button class="tab" data-tab="calc" type="button">Kalkulation</button>
+      </nav>
+
+      <div class="sideActions">
+        <button id="btnExport" class="btn" type="button">Export JSON</button>
+        <label class="btn" style="display:block; text-align:center; cursor:pointer;">
+          Import JSON
+          <input id="fileImport" type="file" accept="application/json" style="display:none;">
+        </label>
+        <button id="btnReset" class="btn btnDanger" type="button">Reset</button>
+      </div>
+    </aside>
+
+    <main class="main">
+
+      <!-- ========== Zutaten ========== -->
+      <section data-panel="ingredients">
+        <div class="panelHeader">
+          <h2>Zutaten</h2>
+          <div class="panelActions">
+            <input id="ingSearch" class="input" placeholder="Suche (Name / Lieferant)" />
+            <button id="btnAddIngredient" class="btn" type="button">+ Zutat</button>
+          </div>
+        </div>
+
+        <div id="ingEmpty" class="emptyState">
+          Noch keine Zutaten. Lege zuerst Zutaten an.
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Einheit</th>
+                <th>Preis pro Einheit</th>
+                <th>Lieferant</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="ingTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Zutaten Modal -->
+      <dialog id="modal" class="modal">
+        <form id="modalForm" method="dialog" class="modalCard">
+          <div class="modalHead">
+            <h3 id="modalTitle">Zutat</h3>
+          </div>
+
+          <div id="modalError" class="errorBox hidden"></div>
+
+          <div class="grid2">
+            <div class="field">
+              <span>Name</span>
+              <input id="fName" class="input" placeholder="z.B. Kartoffeln" required />
+            </div>
+
+            <div class="field">
+              <span>Basiseinheit</span>
+              <select id="fUnit" class="input">
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="l">l</option>
+                <option value="ml">ml</option>
+                <option value="pc">pc</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <span>Preis pro Basiseinheit (€)</span>
+              <input id="fPrice" class="input" inputmode="decimal" placeholder="z.B. 2,49" required />
+            </div>
+
+            <div class="field">
+              <span>Lieferant</span>
+              <input id="fSupplier" class="input" placeholder="z.B. Metro" />
+            </div>
+
+            <div class="field" style="grid-column:1 / -1;">
+              <span>Notizen</span>
+              <input id="fNotes" class="input" placeholder="optional" />
+            </div>
+          </div>
+
+          <div class="modalActions">
+            <button class="btn" value="cancel" type="submit">Abbrechen</button>
+            <button class="btn btnPrimary" value="save" type="submit">Speichern</button>
+            <button id="btnDelete" class="btn btnDanger hidden" value="delete" type="submit">Löschen</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- ========== Rezepte ========== -->
+      <section data-panel="recipes" class="hidden">
+        <div class="panelHeader">
+          <h2>Rezepte</h2>
+          <div class="panelActions">
+            <input id="recSearch" class="input" placeholder="Suche (Rezeptname)" />
+            <button id="btnAddRecipe" class="btn" type="button">+ Rezept</button>
+          </div>
+        </div>
+
+        <div id="recEmpty" class="emptyState">
+          Noch keine Rezepte. Lege zuerst ein Rezept an.
+        </div>
+
+        <div class="tableWrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>MwSt</th>
+                <th>Yield Portionen</th>
+                <th>Ziel-Überschuss (€)</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="recTbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Rezept Modal -->
+      <dialog id="recModal" class="modal">
+        <form id="recForm" method="dialog" class="modalCard">
+          <div class="modalHead">
+            <h3 id="recTitle">Rezept</h3>
+          </div>
+
+          <div id="recError" class="errorBox hidden"></div>
+
+          <div class="grid2">
+            <div class="field">
+              <span>Name</span>
+              <input id="rName" class="input" placeholder="z.B. Kartoffelsalat" required />
+            </div>
+
+            <div class="field">
+              <span>MwSt-Kategorie</span>
+              <select id="rVat" class="input">
+                <option value="food">Food (7%)</option>
+                <option value="drink">Drink (19%)</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <span>Yield Portionen (Batch)</span>
+              <input id="rYield" class="input" inputmode="numeric" placeholder="z.B. 10" required />
+            </div>
+
+            <div class="field">
+              <span>Portionsgröße (optional)</span>
+              <div style="display:flex; gap:8px;">
+                <input id="rPortionSize" class="input" inputmode="decimal" placeholder="z.B. 250" />
+                <select id="rPortionUnit" class="input" style="max-width:100px;">
+                  <option value="g">g</option>
+                  <option value="ml">ml</option>
+                  <option value="pc">pc</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <span>Schwund/Verlust % (optional)</span>
+              <input id="rLoss" class="input" inputmode="decimal" placeholder="z.B. 3" />
+            </div>
+
+            <div class="field">
+              <span>Verpackungs-Set</span>
+              <select id="rPackSet" class="input"></select>
+            </div>
+
+            <div class="field" style="grid-column:1 / -1;">
+              <span>Ziel-Überschuss € pro Portion (nur für €-Modus)</span>
+              <input id="rTargetDB" class="input" inputmode="decimal" placeholder="z.B. 1,50" required />
+            </div>
+          </div>
+
+          <div class="subHeader">
+            <h4>Zutatenliste</h4>
+            <button id="btnAddRecIng" class="btn" type="button">+ Zutat</button>
+          </div>
+
+          <div class="tableWrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Zutat</th>
+                  <th>Menge</th>
+                  <th>Einheit</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="recIngTbody"></tbody>
+            </table>
+          </div>
+
+          <div class="modalActions">
+            <button class="btn" value="cancel" type="submit">Abbrechen</button>
+            <button class="btn btnPrimary" value="save" type="submit">Speichern</button>
+            <button id="btnRecDelete" class="btn btnDanger hidden" value="delete" type="submit">Löschen</button>
+          </div>
+        </form>
+      </dialog>
+
+      <!-- ========== Fixkosten ========== -->
+      <section data-panel="costs" class="hidden">
+        <div class="panelHeader">
+          <h2>Fixkosten</h2>
+        </div>
+
+        <div class="card">
+          <h3>Monatsportionen</h3>
+          <div class="grid3">
+            <div class="field">
+              <span>Öffnungstage / Monat</span>
+              <input id="openDaysPerMonth" class="input" inputmode="numeric" placeholder="z.B. 12" />
+            </div>
+            <div class="field">
+              <span>Portionen / Öffnungstag</span>
+              <input id="expectedPortionsPerOpenDay" class="input" inputmode="numeric" placeholder="z.B. 80" />
+            </div>
+            <div class="field">
+              <span>Override: Monatsportionen</span>
+              <input id="overrideMonthlyPortions" class="input" inputmode="numeric" placeholder="leer = automatisch" />
+            </div>
+          </div>
+
+          <div class="infoRow">
+            <div>Berechnete Monatsportionen: <strong id="computedMonthlyPortions">—</strong></div>
+            <div id="costsWarn" class="warn hidden"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Standard-Fixkosten (€/Monat)</h3>
+          <div class="grid2">
+            <div class="field"><span>Miete/Stand</span><input id="fc_rent" class="input" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><span>Versicherung</span><input id="fc_insurance" class="input" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><span>Telefon/Internet</span><input id="fc_phoneInternet" class="input" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><span>Leasing/Equipment</span><input id="fc_equipmentLeasing" class="input" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><span>Buchhaltung</span><input id="fc_accounting" class="input" inputmode="decimal" placeholder="0,00"></div>
+            <div class="field"><span>Sonstiges</span><input id="fc_other" class="input" inputmode="decimal" placeholder="0,00"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="subHeader">
+            <h3>Eigene Fixkosten-Felder</h3>
+            <button id="btnAddFixedCustom" class="btn" type="button">+ Feld</button>
+          </div>
+
+          <div class="tableWrap">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>Bezeichnung</th>
+                  <th>Betrag €/Monat</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="fixedCustomTbody"></tbody>
+            </table>
+          </div>
+
+          <div class="infoRow">
+            <div>Fixkosten gesamt (Monat): <strong id="fixedMonthlyTotal">—</strong></div>
+            <div>Fixkosten pro Portion: <strong id="fixedPerPortion">—</strong></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ========== Kalkulation ========== -->
+      <section data-panel="calc" class="hidden">
+        <div class="panelHeader">
+          <h2>Kalkulation</h2>
+          <div class="panelActions">
+            <select id="calcMode" class="input" style="min-width:190px;">
+              <option value="euro">Ziel-Überschuss €</option>
+              <option value="pct">Ziel-DB % (Netto)</option>
+            </select>
+
+            <select id="calcRecipeSelect" class="input"></select>
+            <button id="btnCalcRefresh" class="btn" type="button">Neu berechnen</button>
+          </div>
+        </div>
+
+        <div id="calcErrors" class="errorBox hidden"></div>
+
+        <div class="card">
+          <h3>Kosten pro Portion</h3>
+          <div class="grid2">
+            <div class="field">
+              <span>Zutaten (inkl. Schwund)</span>
+              <div class="input readonly" id="calcCostIngredients"></div>
+            </div>
+            <div class="field">
+              <span>Verpackung</span>
+              <div class="input readonly" id="calcCostPackaging"></div>
+            </div>
+            <div class="field">
+              <span>Fixkosten</span>
+              <div class="input readonly" id="calcCostFixed"></div>
+            </div>
+            <div class="field">
+              <span>Gesamtkosten</span>
+              <div class="input readonly" id="calcCostTotal"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Preis</h3>
+          <div class="grid2">
+
+            <!-- euro target (shown in euro mode) -->
+            <div class="field" id="calcTargetEuroWrap">
+              <span>Ziel-Überschuss</span>
+              <div class="input readonly" id="calcTargetDB"></div>
+            </div>
+
+            <!-- pct target (shown in pct mode) -->
+            <div class="field hidden" id="calcDbPctWrap">
+              <span>Ziel-DB % (vom Netto-Umsatz)</span>
+              <input id="calcDbPctInput" class="input" inputmode="decimal" placeholder="z.B. 30" />
+            </div>
+
+            <div class="field">
+              <span>MwSt</span>
+              <div class="input readonly" id="calcVat"></div>
+            </div>
+
+            <div class="field">
+              <span>Netto (roh)</span>
+              <div class="input readonly" id="calcNetRaw"></div>
+            </div>
+
+            <div class="field">
+              <span>Brutto (roh)</span>
+              <div class="input readonly" id="calcGrossRaw"></div>
+            </div>
+
+            <div class="field">
+              <span>Verkaufspreis (gerundet)</span>
+              <div class="input readonly" id="calcGrossRounded" style="font-weight:800;"></div>
+            </div>
+
+            <div class="field">
+              <span>Netto (aus gerundetem Brutto)</span>
+              <div class="input readonly" id="calcNetImplied"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Deckungsbeitrag (aus gerundetem Preis)</h3>
+          <div class="grid2">
+            <div class="field">
+              <span>DB €</span>
+              <div class="input readonly" id="calcDbEuro"></div>
+            </div>
+            <div class="field">
+              <span>DB %</span>
+              <div class="input readonly" id="calcDbPct"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Status</h3>
+          <pre id="status" class="statusBox"></pre>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>

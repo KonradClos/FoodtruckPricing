@@ -1,0 +1,364 @@
+:root { --border:#e2e2e2; --bg:#fafafa; --muted:#666; }
+* { box-sizing: border-box; }
+body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background: var(--bg); }
+h1,h2,h3 { margin:0 0 8px; }
+.muted { color: var(--muted); }
+.small { color: var(--muted); font-size: 13px; line-height: 1.35; }
+.right { text-align: right; }
+
+.topbar{
+  padding: 14px 16px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
+  border-bottom:1px solid var(--border); background:white;
+}
+.brand h1 { font-size: 18px; }
+.sub { font-size: 12px; color: var(--muted); }
+
+.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
+
+.btn{
+  padding: 8px 10px; border-radius: 10px; border:1px solid var(--border);
+  background:white; cursor:pointer; font-size: 13px;
+}
+.btn:hover { filter: brightness(0.98); }
+.btnPrimary { border-color:#b7d2ff; background:#eef5ff; }
+.btnDanger { border-color:#ffc2c2; background:#fff1f1; }
+
+.filebtn input { display:none; }
+
+.tabs{
+  display:flex; gap:6px; padding: 10px 12px; background:white; border-bottom:1px solid var(--border);
+  overflow:auto;
+}
+.tab{
+  border:1px solid var(--border); background:white; padding:8px 10px; border-radius: 999px; cursor:pointer;
+  font-size: 13px; white-space:nowrap;
+}
+.tab.isActive { background:#f0f0f0; }
+
+.layout{
+  display:grid; grid-template-columns: 1.5fr 0.9fr;
+  gap:12px; padding:12px; align-items:start;
+}
+.panel{
+  background:white; border:1px solid var(--border); border-radius:16px; padding:12px;
+}
+.hidden { display:none; }
+.hr { height:1px; background: var(--border); margin: 12px 0; }
+
+.panelHeader{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
+.panelActions{ display:flex; gap:8px; align-items:center; }
+
+.input{
+  border:1px solid var(--border); border-radius: 12px; padding: 8px 10px; font-size: 14px;
+  min-width: 220px;
+}
+@media (max-width: 900px){
+  .layout{ grid-template-columns: 1fr; }
+  .input{ min-width: 160px; width: 100%; }
+  .panelActions{ width: 100%; }
+}
+
+.tableWrap{ overflow:auto; }
+.table{ width:100%; border-collapse: collapse; margin-top: 10px; }
+.table th, .table td{ border-top:1px solid var(--border); padding:10px 8px; font-size: 13px; }
+.table th{ text-align:left; color: var(--muted); font-weight:600; }
+.table td.actions{ white-space: nowrap; text-align:right; }
+
+.empty{ padding: 12px; border:1px dashed var(--border); border-radius: 12px; margin-top: 10px; color: var(--muted); }
+
+.code{ background:#f6f6f6; padding:10px; border-radius:12px; overflow:auto; font-size: 12px; }
+.error{ color:#b40000; margin-top: 10px; font-size: 13px; }
+.modal::backdrop{ background: rgba(0,0,0,0.25); }
+.modalCard{ border:1px solid var(--border); border-radius:16px; padding:14px; min-width: min(520px, 92vw); }
+.grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
+@media (max-width: 520px){ .grid2{ grid-template-columns: 1fr; } }
+.field span{ display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+.modalActions{ display:flex; justify-content:flex-end; gap:8px; margin-top: 12px; flex-wrap:wrap; }
+/* === Add-ons for new index.html (append at end of styles.css) === */
+
+/* Layout helpers (falls in deiner CSS noch nicht vorhanden) */
+.appShell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 280px;
+  padding: 16px;
+  border-right: 1px solid rgba(0,0,0,0.08);
+}
+
+.main {
+  flex: 1;
+  padding: 16px;
+  overflow-x: hidden;
+}
+
+/* Headings / sections */
+.panelHeader {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.panelActions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.emptyState {
+  padding: 12px;
+  border: 1px dashed rgba(0,0,0,0.25);
+  border-radius: 12px;
+  margin: 10px 0 14px;
+}
+
+/* Buttons (fallback, falls nicht in deiner CSS) */
+.btn {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: rgba(0,0,0,0.02);
+  cursor: pointer;
+}
+
+.btn:hover {
+  filter: brightness(0.98);
+}
+
+.btnPrimary {
+  font-weight: 700;
+}
+
+.btnDanger {
+  border-color: rgba(180,0,0,0.35);
+}
+
+/* Inputs / fields */
+.input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0,0,0,0.15);
+  background: white;
+  box-sizing: border-box;
+}
+
+.field > span {
+  display: inline-block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.input.readonly,
+.readonly {
+  background: rgba(0,0,0,0.03);
+  border-color: rgba(0,0,0,0.12);
+  user-select: text;
+}
+
+/* Tables */
+.tableWrap {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.10);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 640px;
+}
+
+.table th,
+.table td {
+  text-align: left;
+  padding: 10px 12px;
+  border-bottom: 1px solid rgba(0,0,0,0.08);
+  vertical-align: middle;
+}
+
+.table thead th {
+  font-size: 12px;
+  opacity: 0.8;
+  background: rgba(0,0,0,0.02);
+}
+
+td.actions {
+  width: 1%;
+  white-space: nowrap;
+}
+
+/* Cards */
+.card {
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(0,0,0,0.10);
+  margin-bottom: 12px;
+}
+
+/* Grid helpers */
+.grid2 {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.grid3 {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+/* Sub header row inside card */
+.subHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 8px 0 10px;
+}
+
+.infoRow {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+/* Status */
+.statusBox {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(0,0,0,0.10);
+  background: rgba(0,0,0,0.03);
+  overflow: auto;
+  max-height: 240px;
+}
+
+/* Errors / warnings */
+.errorBox {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(180,0,0,0.35);
+  background: rgba(180,0,0,0.06);
+  margin-bottom: 12px;
+}
+
+.warn {
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(180,120,0,0.35);
+  background: rgba(180,120,0,0.08);
+}
+
+.hidden {
+  display: none !important;
+}
+
+/* Modal (dialog) */
+.modal::backdrop {
+  background: rgba(0,0,0,0.35);
+}
+
+.modalCard {
+  border: 0;
+  padding: 14px;
+  border-radius: 14px;
+  min-width: min(920px, 92vw);
+}
+
+.modalHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
+}
+
+/* Mobile */
+@media (max-width: 900px) {
+  .appShell {
+    flex-direction: column;
+  }
+  .sidebar {
+    width: 100%;
+    border-right: 0;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+  }
+  .table {
+    min-width: 560px;
+  }
+  .grid2, .grid3 {
+    grid-template-columns: 1fr;
+  }
+  .modalCard {
+    min-width: auto;
+    width: 92vw;
+  }
+}
+/* === FIX: Action column & buttons in tables === */
+.table td.actions {
+  width: 140px;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.table td.actions .btn {
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
+}
+/* === Sidebar button cleanup === */
+.sidebar .btn {
+  width: 100%;
+  padding: 8px 10px;
+  font-size: 14px;
+  border-radius: 10px;
+}
+
+.sidebar .sideActions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+/* === Panel header alignment === */
+.panelActions {
+  gap: 8px;
+}
+
+.panelActions .input {
+  max-width: 260px;
+}
+/* === Sidebar tabs refinement === */
+.tab {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+}
+
+.tab.isActive {
+  background: rgba(0,0,0,0.06);
+  font-weight: 600;
+}
+
+
+
