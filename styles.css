@@ -380,6 +380,42 @@ button, .btn, .tab, select, input, label {
   position: relative;
   z-index: 1;
 }
+/* === iPhone/Safari: dialog content must scroll === */
+@media (max-width: 900px) {
+  dialog.modal {
+    padding: 0;
+  }
+
+  .modalCard {
+    max-height: 88vh;
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+/* === iPhone/Safari: keep table headers visible inside modal === */
+@media (max-width: 900px) {
+  dialog.modal .tableWrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  dialog.modal .table {
+    min-width: 0;          /* wichtig: nicht 560px erzwingen im Modal */
+  }
+
+  dialog.modal .table thead th {
+    position: sticky;
+    top: 0;
+    background: white;
+    z-index: 2;
+  }
+}
+@media (max-width: 900px) {
+  dialog.modal .field > span {
+    opacity: 1;
+    font-weight: 600;
+  }
+}
 
 
 
