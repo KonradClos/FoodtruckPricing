@@ -4,6 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Foodtruck Pricing</title>
+
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -51,8 +52,8 @@
             <thead>
               <tr>
                 <th>Name</th>
-                <th>Basiseinheit</th>
-                <th>Preis pro Basiseinheit</th>
+                <th>Einheit</th>
+                <th>Preis pro Einheit</th>
                 <th>Lieferant</th>
                 <th></th>
               </tr>
@@ -78,11 +79,14 @@
             </div>
 
             <div class="field">
-              <span>Basiseinheit (Preis bezieht sich darauf)</span>
+              <span>Basiseinheit</span>
               <select id="fUnit" class="input">
-                <option value="kg">kg (€/kg)</option>
-                <option value="l">l (€/l)</option>
-                <option value="pc">pc (€/Stk)</option>
+                <option value="kg">kg</option>
+                <option value="g">g</option>
+                <option value="mg">mg</option>
+                <option value="l">l</option>
+                <option value="ml">ml</option>
+                <option value="pc">pc</option>
               </select>
             </div>
 
@@ -130,7 +134,7 @@
               <tr>
                 <th>Name</th>
                 <th>MwSt</th>
-                <th>Ziel-Überschuss (€) optional</th>
+                <th>Ziel-Überschuss (€)</th>
                 <th></th>
               </tr>
             </thead>
@@ -166,8 +170,9 @@
               <span>Portionsgröße (optional)</span>
               <div style="display:flex; gap:8px;">
                 <input id="rPortionSize" class="input" inputmode="decimal" placeholder="z.B. 250" />
-                <select id="rPortionUnit" class="input" style="max-width:120px;">
+                <select id="rPortionUnit" class="input" style="max-width:110px;">
                   <option value="g">g</option>
+                  <option value="mg">mg</option>
                   <option value="ml">ml</option>
                   <option value="pc">pc</option>
                 </select>
@@ -184,14 +189,14 @@
               <select id="rPackSet" class="input"></select>
             </div>
 
-            <div class="field">
+            <div class="field" style="grid-column:1 / -1;">
               <span>Ziel-Überschuss € pro Portion (optional – nur für €-Modus)</span>
-              <input id="rTargetDB" class="input" inputmode="decimal" placeholder="z.B. 1,50" />
+              <input id="rTargetDB" class="input" inputmode="decimal" placeholder="z.B. 1,50 (leer = nur DB%-Modus)" />
             </div>
           </div>
 
           <div class="subHeader">
-            <h4>Zutatenliste (Menge pro Portion)</h4>
+            <h4>Zutatenliste (pro Portion)</h4>
             <button id="btnAddRecIng" class="btn" type="button">+ Zutat</button>
           </div>
 
@@ -304,17 +309,28 @@
         <div class="card">
           <h3>Kosten pro Portion</h3>
           <div class="grid2">
-            <div class="field"><span>Zutaten (inkl. Schwund)</span><div class="input readonly" id="calcCostIngredients"></div></div>
-            <div class="field"><span>Verpackung</span><div class="input readonly" id="calcCostPackaging"></div></div>
-            <div class="field"><span>Fixkosten</span><div class="input readonly" id="calcCostFixed"></div></div>
-            <div class="field"><span>Gesamtkosten</span><div class="input readonly" id="calcCostTotal"></div></div>
+            <div class="field">
+              <span>Zutaten (inkl. Schwund)</span>
+              <div class="input readonly" id="calcCostIngredients"></div>
+            </div>
+            <div class="field">
+              <span>Verpackung</span>
+              <div class="input readonly" id="calcCostPackaging"></div>
+            </div>
+            <div class="field">
+              <span>Fixkosten</span>
+              <div class="input readonly" id="calcCostFixed"></div>
+            </div>
+            <div class="field">
+              <span>Gesamtkosten</span>
+              <div class="input readonly" id="calcCostTotal"></div>
+            </div>
           </div>
         </div>
 
         <div class="card">
-          <h3>Mindestpreis (berechnet)</h3>
+          <h3>Mindestpreis (aus Zielwert)</h3>
           <div class="grid2">
-
             <div class="field" id="calcTargetEuroWrap">
               <span>Ziel-Überschuss (€/Portion)</span>
               <div class="input readonly" id="calcTargetDB"></div>
@@ -325,42 +341,59 @@
               <input id="calcDbPctInput" class="input" inputmode="decimal" placeholder="z.B. 30" />
             </div>
 
-            <div class="field"><span>MwSt</span><div class="input readonly" id="calcVat"></div></div>
-            <div class="field"><span>Mindestpreis Brutto (gerundet)</span><div class="input readonly" id="calcMinGross" style="font-weight:800;"></div></div>
-            <div class="field"><span>Mindestpreis Netto (aus gerundetem Brutto)</span><div class="input readonly" id="calcMinNet"></div></div>
+            <div class="field">
+              <span>MwSt</span>
+              <div class="input readonly" id="calcVat"></div>
+            </div>
+
+            <div class="field">
+              <span>Mindestpreis Brutto (gerundet)</span>
+              <div class="input readonly" id="calcMinGross" style="font-weight:800;"></div>
+            </div>
+
+            <div class="field">
+              <span>Mindestpreis Netto (aus gerundetem Brutto)</span>
+              <div class="input readonly" id="calcMinNet"></div>
+            </div>
           </div>
         </div>
 
         <div class="card">
-          <h3>Markt & Verkaufspreis (optional)</h3>
+          <h3>Marktpreis & Dein Verkaufspreis</h3>
           <div class="grid2">
             <div class="field">
-              <span>Marktpreis Brutto</span>
+              <span>Marktpreis Brutto (optional)</span>
               <input id="marketPriceGross" class="input" inputmode="decimal" placeholder="z.B. 18,50" />
             </div>
+
             <div class="field">
-              <span>Dein Verkaufspreis Brutto</span>
+              <span>Dein Verkaufspreis Brutto (optional)</span>
               <input id="sellPriceGross" class="input" inputmode="decimal" placeholder="z.B. 15,80" />
             </div>
+
             <div class="field">
-              <span>Dein Preis Netto</span>
+              <span>Dein Verkaufspreis Netto</span>
               <div class="input readonly" id="sellNet"></div>
             </div>
+
             <div class="field">
-              <span>Abstand zum Markt (Brutto)</span>
+              <span>Abstand zum Marktpreis (Dein Brutto - Markt Brutto)</span>
               <div class="input readonly" id="gapToMarket"></div>
             </div>
           </div>
-          <div class="small">
-            Wenn „Dein Verkaufspreis“ leer ist, wird automatisch der Mindestpreis verwendet.
-          </div>
         </div>
 
         <div class="card">
-          <h3>Deckungsbeitrag (aus deinem Preis)</h3>
+          <h3>Deckungsbeitrag (aus Deinem Preis)</h3>
           <div class="grid2">
-            <div class="field"><span>DB €</span><div class="input readonly" id="calcDbEuro"></div></div>
-            <div class="field"><span>DB %</span><div class="input readonly" id="calcDbPct"></div></div>
+            <div class="field">
+              <span>DB €</span>
+              <div class="input readonly" id="calcDbEuro"></div>
+            </div>
+            <div class="field">
+              <span>DB %</span>
+              <div class="input readonly" id="calcDbPct"></div>
+            </div>
           </div>
         </div>
 
