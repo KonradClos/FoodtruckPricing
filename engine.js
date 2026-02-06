@@ -1,38 +1,38 @@
 /* engine.js
-   Core calculation engine for Foodtruck pricing (DE)
-   - cost calculation separated from pricing calculation
-   - pricing modes:
+   Core calculation engine for Foodtruck pricing (DE/EN)
+   - Recipes are PER PORTION (no batch/yield)
+   - Unit conversion supports: kg, g, mg, l, ml, pc, stk
+   - Cost calculation separated from pricing calculation
+   - Pricing modes:
      A) target € (target contribution in EUR)
      B) target DB% of net revenue (classic contribution margin %)
-   - rounding: always up to 0.10
+   - rounding: always up to roundingStep (default 0.10)
 */
 
 export const I18N = {
   de: {
-    ERR_TARGET_DB_MISSING: "Ziel-Überschuss/Ziel-DB fehlt.",
     ERR_TARGET_DB_INVALID: "Zielwert muss größer als 0 sein.",
     ERR_DB_PCT_INVALID: "Ziel-DB % muss zwischen 0 und <100 liegen.",
     ERR_PRODUCT_NOT_FOUND: "Produkt nicht gefunden.",
     ERR_INGREDIENT_NOT_FOUND: "Zutat nicht gefunden.",
     ERR_PACKSET_NOT_FOUND: "Verpackungs-Set nicht gefunden.",
     ERR_UNIT_CONVERSION: "Einheiten-Umrechnung nicht möglich.",
-    ERR_YIELD_INVALID: "Batch-Portionen (yieldPortions) muss > 0 sein.",
     ERR_PURCHASE_PRICE_INVALID: "Einkaufspreis pro Einheit muss >= 0 sein.",
     ERR_VAT_CATEGORY_INVALID: "Ungültige MwSt-Kategorie.",
-    ERR_VOLUME_ASSUMPTIONS_INVALID: "Öffnungstage/Portionen pro Tag müssen > 0 sein (oder Monatsportionen überschreiben)."
+    ERR_VOLUME_ASSUMPTIONS_INVALID:
+      "Öffnungstage/Portionen pro Tag müssen > 0 sein (oder Monatsportionen überschreiben)."
   },
   en: {
-    ERR_TARGET_DB_MISSING: "Target value missing.",
     ERR_TARGET_DB_INVALID: "Target value must be > 0.",
     ERR_DB_PCT_INVALID: "Target DB% must be between 0 and <100.",
     ERR_PRODUCT_NOT_FOUND: "Product not found.",
     ERR_INGREDIENT_NOT_FOUND: "Ingredient not found.",
     ERR_PACKSET_NOT_FOUND: "Packaging set not found.",
     ERR_UNIT_CONVERSION: "Unit conversion not possible.",
-    ERR_YIELD_INVALID: "Batch yieldPortions must be > 0.",
     ERR_PURCHASE_PRICE_INVALID: "Purchase price per unit must be >= 0.",
     ERR_VAT_CATEGORY_INVALID: "Invalid VAT category.",
-    ERR_VOLUME_ASSUMPTIONS_INVALID: "Open days/portions per day must be > 0 (or override monthly portions)."
+    ERR_VOLUME_ASSUMPTIONS_INVALID:
+      "Open days/portions per day must be > 0 (or override monthly portions)."
   }
 };
 
@@ -52,36 +52,70 @@ export function sumObjectValues(obj) {
 
 /** ===== units ===== */
 const UNIT_GROUP = {
+  // mass
   kg: "mass",
   g: "mass",
+  mg: "mass",
+
+  // volume
   l: "volume",
   ml: "volume",
+
+  // piece
   pc: "piece",
   stk: "piece"
 };
 
+function normalizeUnit(u) {
+  return String(u || "").trim().toLowerCase();
+}
+
+/**
+ * Convert qty from unit -> baseUnit (same group)
+ * Returns qty expressed IN baseUnit.
+ */
 export function toBaseUnit(qty, unit, baseUnit, lang = "de") {
   const q = Number(qty);
   if (!Number.isFinite(q)) return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
 
-  const u = (unit || "").toLowerCase();
-  const b = (baseUnit || "").toLowerCase();
+  const u = normalizeUnit(unit);
+  const b = normalizeUnit(baseUnit);
 
   if (!UNIT_GROUP[u] || !UNIT_GROUP[b]) return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
   if (UNIT_GROUP[u] !== UNIT_GROUP[b]) return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
 
   if (u === b) return { ok: true, value: q };
 
+  // mass: kg <-> g <-> mg
   if (UNIT_GROUP[u] === "mass") {
-    if (u === "kg" && b === "g") return { ok: true, value: q * 1000 };
-    if (u === "g" && b === "kg") return { ok: true, value: q / 1000 };
+    const toGrams = (val, from) => {
+      if (from === "kg") return val * 1000;
+      if (from === "g") return val;
+      if (from === "mg") return val / 1000;
+      return NaN;
+    };
+    const fromGrams = (gVal, to) => {
+      if (to === "kg") return gVal / 1000;
+      if (to === "g") return gVal;
+      if (to === "mg") return gVal * 1000;
+      return NaN;
+    };
+    const grams = toGrams(q, u);
+    const out = fromGrams(grams, b);
+    if (!Number.isFinite(out)) return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
+    return { ok: true, value: out };
   }
+
+  // volume: l <-> ml
   if (UNIT_GROUP[u] === "volume") {
     if (u === "l" && b === "ml") return { ok: true, value: q * 1000 };
     if (u === "ml" && b === "l") return { ok: true, value: q / 1000 };
+    return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
   }
+
+  // piece: pc <-> stk (1:1)
   if (UNIT_GROUP[u] === "piece") {
-    return { ok: true, value: q }; // pc <-> stk 1:1
+    return { ok: true, value: q };
   }
 
   return { ok: false, error: msg(lang, "ERR_UNIT_CONVERSION") };
@@ -95,7 +129,7 @@ export function indexById(list) {
 }
 
 export function getVatRate(data, vatCategory, lang = "de") {
-  const cat = (vatCategory || "").toLowerCase();
+  const cat = normalizeUnit(vatCategory);
   const rates = data?.settings?.vatRates || {};
   if (cat === "food") return rates.food ?? 0.07;
   if (cat === "drink") return rates.drink ?? 0.19;
@@ -167,13 +201,16 @@ export function calcPackagingCostPerPortion(data, packagingSetId, lang = "de") {
   return { ok: true, value: total };
 }
 
+/**
+ * Recipe ingredients are PER PORTION.
+ * Each ingredient has:
+ * - baseUnit (e.g. kg)
+ * - pricePerBaseUnit (€/kg)
+ * Recipe line has qty + unit (e.g. 250 g)
+ * -> convert to baseUnit, multiply by pricePerBaseUnit
+ */
 export function calcRecipeIngredientCostPerPortion(data, recipe, lang = "de") {
   const ingMap = indexById(data?.catalog?.ingredients || []);
-  const yieldP = Number(recipe?.batch?.yieldPortions);
-
-  if (!Number.isFinite(yieldP) || yieldP <= 0) {
-    return { ok: false, error: msg(lang, "ERR_YIELD_INVALID"), value: 0 };
-  }
 
   const lossPct = Number.isFinite(Number(recipe?.lossPercent))
     ? Number(recipe.lossPercent)
@@ -181,7 +218,7 @@ export function calcRecipeIngredientCostPerPortion(data, recipe, lang = "de") {
 
   const lossFactor = 1 + Math.max(0, lossPct);
 
-  let batchCost = 0;
+  let cost = 0;
   for (const line of recipe?.ingredients || []) {
     const ing = ingMap.get(line.ingredientId);
     if (!ing) return { ok: false, error: msg(lang, "ERR_INGREDIENT_NOT_FOUND"), value: 0 };
@@ -190,13 +227,17 @@ export function calcRecipeIngredientCostPerPortion(data, recipe, lang = "de") {
     const conv = toBaseUnit(line.qty, line.unit, baseUnit, lang);
     if (!conv.ok) return { ok: false, error: conv.error, value: 0 };
 
-    const qtyInBase = conv.value;
-    const pricePerBase = Number(ing.pricePerBaseUnit) || 0;
-    batchCost += qtyInBase * pricePerBase;
+    const qtyInBase = conv.value; // in ingredient.baseUnit
+    const pricePerBase = Number(ing.pricePerBaseUnit);
+
+    if (!Number.isFinite(pricePerBase) || pricePerBase < 0) {
+      return { ok: false, error: msg(lang, "ERR_PURCHASE_PRICE_INVALID"), value: 0 };
+    }
+
+    cost += qtyInBase * pricePerBase;
   }
 
-  const batchCostWithLoss = batchCost * lossFactor;
-  return { ok: true, value: batchCostWithLoss / yieldP, batchCost: batchCostWithLoss, yieldPortions: yieldP };
+  return { ok: true, value: cost * lossFactor, lossFactor, baseCostNoLoss: cost };
 }
 
 export function calcItemPurchaseCostPerPortion(item, data, lang = "de") {
@@ -213,7 +254,7 @@ export function calcItemPurchaseCostPerPortion(item, data, lang = "de") {
   return { ok: true, value: purchase * lossFactor };
 }
 
-/** ====== NEW: cost-only result (no pricing validation) ====== */
+/** ====== cost-only result (no pricing validation) ====== */
 export function calcCostResult(data, productType, product, lang = "de", plannedDayTotalPortions = 0) {
   try {
     const vatRate = getVatRate(data, product.vatCategory, lang);
@@ -222,6 +263,7 @@ export function calcCostResult(data, productType, product, lang = "de", plannedD
     if (!fixed.ok) return { ok: false, errors: [fixed.error], result: null };
 
     const daily = calcDailyCostPerPortion(data, plannedDayTotalPortions, lang);
+
     const packaging = calcPackagingCostPerPortion(data, product.packagingSetId, lang);
     if (!packaging.ok) return { ok: false, errors: [packaging.error], result: null };
 
@@ -232,7 +274,11 @@ export function calcCostResult(data, productType, product, lang = "de", plannedD
       const ingCost = calcRecipeIngredientCostPerPortion(data, product, lang);
       if (!ingCost.ok) return { ok: false, errors: [ingCost.error], result: null };
       baseCost = ingCost.value;
-      detail = { ingredientCostPerPortion: ingCost.value, batchCost: ingCost.batchCost, yieldPortions: ingCost.yieldPortions };
+      detail = {
+        ingredientCostPerPortion: ingCost.value,
+        ingredientCostNoLoss: ingCost.baseCostNoLoss,
+        lossFactor: ingCost.lossFactor
+      };
     } else if (productType === "item") {
       const itemCost = calcItemPurchaseCostPerPortion(product, data, lang);
       if (!itemCost.ok) return { ok: false, errors: [itemCost.error], result: null };
@@ -242,11 +288,8 @@ export function calcCostResult(data, productType, product, lang = "de", plannedD
       return { ok: false, errors: [msg(lang, "ERR_PRODUCT_NOT_FOUND")], result: null };
     }
 
-    const laborCost = (product?.labor?.enabled)
-      ? ((Number(product.labor.costPerHour) || 0) / 60) *
-        (((Number(product.labor.prepMinutesPerBatch) || 0) / (Number(product?.batch?.yieldPortions) || 1)) +
-         (Number(product.labor.serviceMinutesPerPortion) || 0))
-      : 0;
+    // Labor intentionally NOT included (you wanted batch removed & labor not used)
+    const laborCost = 0;
 
     const costPerPortion =
       baseCost +
@@ -264,7 +307,7 @@ export function calcCostResult(data, productType, product, lang = "de", plannedD
         vatCategory: product.vatCategory,
         vatRate,
         costs: {
-          baseCost,
+          baseCost, // ingredients (recipe) or purchase (item) already includes loss
           packaging: packaging.value,
           fixed: fixed.value,
           daily: (daily.ok ? daily.value : 0),
@@ -307,11 +350,10 @@ export function calcPriceFromTargetDbPct({ costPerPortion, targetDbPct, vatRate,
   return { ok: true, netRaw: net, grossRaw, grossRounded, netImplied };
 }
 
-/** ====== existing: product result (target EURO from recipe) ======
-    (kept for compatibility: still used in € mode)
+/** ===== product result (target EURO in recipe) =====
+    (used by € mode in app.js)
 */
 export function calcProductResult(data, productType, product, lang = "de", plannedDayTotalPortions = 0) {
-  // validate targetEuro in recipe/item
   const targetEuro = Number(product?.pricing?.targetDBEuro);
   if (!Number.isFinite(targetEuro) || targetEuro <= 0) {
     return { ok: false, errors: [msg(lang, "ERR_TARGET_DB_INVALID")], result: null };
