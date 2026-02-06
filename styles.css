@@ -1,82 +1,22 @@
 :root { --border:#e2e2e2; --bg:#fafafa; --muted:#666; }
+
 * { box-sizing: border-box; }
-body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin:0; background: var(--bg); }
-h1,h2,h3 { margin:0 0 8px; }
-.muted { color: var(--muted); }
-.small { color: var(--muted); font-size: 13px; line-height: 1.35; }
-.right { text-align: right; }
 
-.topbar{
-  padding: 14px 16px; display:flex; justify-content:space-between; gap:12px; align-items:flex-start;
-  border-bottom:1px solid var(--border); background:white;
-}
-.brand h1 { font-size: 18px; }
-.sub { font-size: 12px; color: var(--muted); }
-
-.actions { display:flex; gap:8px; align-items:center; flex-wrap:wrap; justify-content:flex-end; }
-
-.btn{
-  padding: 8px 10px; border-radius: 10px; border:1px solid var(--border);
-  background:white; cursor:pointer; font-size: 13px;
-}
-.btn:hover { filter: brightness(0.98); }
-.btnPrimary { border-color:#b7d2ff; background:#eef5ff; }
-.btnDanger { border-color:#ffc2c2; background:#fff1f1; }
-
-.filebtn input { display:none; }
-
-.tabs{
-  display:flex; gap:6px; padding: 10px 12px; background:white; border-bottom:1px solid var(--border);
-  overflow:auto;
-}
-.tab{
-  border:1px solid var(--border); background:white; padding:8px 10px; border-radius: 999px; cursor:pointer;
-  font-size: 13px; white-space:nowrap;
-}
-.tab.isActive { background:#f0f0f0; }
-
-.layout{
-  display:grid; grid-template-columns: 1.5fr 0.9fr;
-  gap:12px; padding:12px; align-items:start;
-}
-.panel{
-  background:white; border:1px solid var(--border); border-radius:16px; padding:12px;
-}
-.hidden { display:none; }
-.hr { height:1px; background: var(--border); margin: 12px 0; }
-
-.panelHeader{ display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap; }
-.panelActions{ display:flex; gap:8px; align-items:center; }
-
-.input{
-  border:1px solid var(--border); border-radius: 12px; padding: 8px 10px; font-size: 14px;
-  min-width: 220px;
-}
-@media (max-width: 900px){
-  .layout{ grid-template-columns: 1fr; }
-  .input{ min-width: 160px; width: 100%; }
-  .panelActions{ width: 100%; }
+html, body {
+  width: 100%;
+  overflow-x: hidden; /* verhindert seitliches "Schieben" */
 }
 
-.tableWrap{ overflow:auto; }
-.table{ width:100%; border-collapse: collapse; margin-top: 10px; }
-.table th, .table td{ border-top:1px solid var(--border); padding:10px 8px; font-size: 13px; }
-.table th{ text-align:left; color: var(--muted); font-weight:600; }
-.table td.actions{ white-space: nowrap; text-align:right; }
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  margin: 0;
+  background: var(--bg);
+}
 
-.empty{ padding: 12px; border:1px dashed var(--border); border-radius: 12px; margin-top: 10px; color: var(--muted); }
+h1,h2,h3,h4 { margin: 0 0 8px; }
 
-.code{ background:#f6f6f6; padding:10px; border-radius:12px; overflow:auto; font-size: 12px; }
-.error{ color:#b40000; margin-top: 10px; font-size: 13px; }
-.modal::backdrop{ background: rgba(0,0,0,0.25); }
-.modalCard{ border:1px solid var(--border); border-radius:16px; padding:14px; min-width: min(520px, 92vw); }
-.grid2{ display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
-@media (max-width: 520px){ .grid2{ grid-template-columns: 1fr; } }
-.field span{ display:block; font-size: 12px; color: var(--muted); margin-bottom: 6px; }
-.modalActions{ display:flex; justify-content:flex-end; gap:8px; margin-top: 12px; flex-wrap:wrap; }
-/* === Add-ons for new index.html (append at end of styles.css) === */
+.hidden { display:none !important; }
 
-/* Layout helpers (falls in deiner CSS noch nicht vorhanden) */
 .appShell {
   display: flex;
   min-height: 100vh;
@@ -86,73 +26,77 @@ h1,h2,h3 { margin:0 0 8px; }
   width: 280px;
   padding: 16px;
   border-right: 1px solid rgba(0,0,0,0.08);
+  background: white;
 }
 
 .main {
   flex: 1;
   padding: 16px;
+  min-width: 0;        /* wichtig bei flex */
   overflow-x: hidden;
 }
 
-/* Headings / sections */
-.panelHeader {
+.brand { margin-bottom: 10px; }
+
+.sideActions {
   display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.tab {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 8px 12px;
+  border-radius: 10px;
+  margin-bottom: 6px;
+  border: 1px solid rgba(0,0,0,0.12);
+  background: white;
+  cursor: pointer;
+}
+.tab.isActive {
+  background: rgba(0,0,0,0.06);
+  font-weight: 600;
+}
+
+.panelHeader{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
   margin-bottom: 12px;
 }
 
-.panelActions {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
+.panelActions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  flex-wrap:wrap;
 }
 
-.emptyState {
-  padding: 12px;
-  border: 1px dashed rgba(0,0,0,0.25);
-  border-radius: 12px;
-  margin: 10px 0 14px;
-}
-
-/* Buttons (fallback, falls nicht in deiner CSS) */
-.btn {
+.btn{
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(0,0,0,0.15);
+  border:1px solid rgba(0,0,0,0.15);
   background: rgba(0,0,0,0.02);
-  cursor: pointer;
+  cursor:pointer;
+  font-size: 14px;
+  user-select: none;
 }
+.btn:hover { filter: brightness(0.98); }
+.btnPrimary { border-color:#b7d2ff; background:#eef5ff; font-weight: 700; }
+.btnDanger { border-color: rgba(180,0,0,0.35); background: rgba(180,0,0,0.06); }
 
-.btn:hover {
-  filter: brightness(0.98);
-}
-
-.btnPrimary {
-  font-weight: 700;
-}
-
-.btnDanger {
-  border-color: rgba(180,0,0,0.35);
-}
-
-/* Inputs / fields */
-.input {
+.input{
   width: 100%;
   padding: 10px 12px;
   border-radius: 10px;
-  border: 1px solid rgba(0,0,0,0.15);
+  border:1px solid rgba(0,0,0,0.15);
   background: white;
-  box-sizing: border-box;
-}
-
-.field > span {
-  display: inline-block;
-  margin-bottom: 6px;
-  font-size: 12px;
-  opacity: 0.75;
+  font-size: 14px;
 }
 
 .input.readonly,
@@ -162,78 +106,88 @@ h1,h2,h3 { margin:0 0 8px; }
   user-select: text;
 }
 
-/* Tables */
-.tableWrap {
-  overflow-x: auto;
+.field > span{
+  display:block;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 6px;
+}
+
+.tableWrap{
+  max-width: 100%;
+  overflow-x:auto;
   border-radius: 12px;
   border: 1px solid rgba(0,0,0,0.10);
 }
 
-.table {
-  width: 100%;
+.table{
+  width:100%;
   border-collapse: collapse;
   min-width: 640px;
 }
 
-.table th,
-.table td {
-  text-align: left;
-  padding: 10px 12px;
+.table th, .table td{
+  padding:10px 12px;
   border-bottom: 1px solid rgba(0,0,0,0.08);
   vertical-align: middle;
+  font-size: 13px;
 }
 
-.table thead th {
+.table thead th{
   font-size: 12px;
   opacity: 0.8;
   background: rgba(0,0,0,0.02);
+  text-align: left;
 }
 
-td.actions {
+td.actions{
   width: 1%;
   white-space: nowrap;
+  text-align: right;
+}
+.table td.actions .btn{
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 8px;
 }
 
-/* Cards */
-.card {
+.card{
   padding: 14px;
   border-radius: 14px;
   border: 1px solid rgba(0,0,0,0.10);
   margin-bottom: 12px;
+  background: white;
 }
 
-/* Grid helpers */
-.grid2 {
-  display: grid;
+.grid2{
+  display:grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
 
-.grid3 {
-  display: grid;
+.grid3{
+  display:grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
 }
 
-/* Sub header row inside card */
-.subHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.subHeader{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
   gap: 12px;
   margin: 8px 0 10px;
 }
 
-.infoRow {
-  display: flex;
-  justify-content: space-between;
+.infoRow{
+  display:flex;
+  justify-content:space-between;
   gap: 12px;
   margin-top: 10px;
   flex-wrap: wrap;
 }
 
-/* Status */
-.statusBox {
+.statusBox{
   margin: 0;
   padding: 10px 12px;
   border-radius: 12px;
@@ -243,8 +197,15 @@ td.actions {
   max-height: 240px;
 }
 
-/* Errors / warnings */
-.errorBox {
+.emptyState{
+  padding: 12px;
+  border: 1px dashed rgba(0,0,0,0.25);
+  border-radius: 12px;
+  margin: 10px 0 14px;
+  color: var(--muted);
+}
+
+.errorBox{
   padding: 10px 12px;
   border-radius: 12px;
   border: 1px solid rgba(180,0,0,0.35);
@@ -252,191 +213,63 @@ td.actions {
   margin-bottom: 12px;
 }
 
-.warn {
+.warn{
   padding: 8px 10px;
   border-radius: 10px;
   border: 1px solid rgba(180,120,0,0.35);
   background: rgba(180,120,0,0.08);
 }
 
-.hidden {
-  display: none !important;
-}
+.modal::backdrop{ background: rgba(0,0,0,0.35); }
 
-/* Modal (dialog) */
-.modal::backdrop {
-  background: rgba(0,0,0,0.35);
-}
-
-.modalCard {
+.modalCard{
   border: 0;
   padding: 14px;
   border-radius: 14px;
   min-width: min(920px, 92vw);
 }
 
-.modalHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
+.modalHead{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
   margin-bottom: 10px;
 }
 
-.modalActions {
-  display: flex;
-  justify-content: flex-end;
+.modalActions{
+  display:flex;
+  justify-content:flex-end;
   gap: 10px;
   margin-top: 14px;
   flex-wrap: wrap;
 }
 
 /* Mobile */
-@media (max-width: 900px) {
-  .appShell {
-    flex-direction: column;
-  }
-  .sidebar {
+@media (max-width: 900px){
+  .appShell{ flex-direction: column; }
+  .sidebar{
     width: 100%;
     border-right: 0;
     border-bottom: 1px solid rgba(0,0,0,0.08);
   }
-  .table {
-    min-width: 560px;
-  }
-  .grid2, .grid3 {
-    grid-template-columns: 1fr;
-  }
+  .grid2, .grid3{ grid-template-columns: 1fr; }
+  .table{ min-width: 560px; }
+  .modalCard{ min-width: auto; width: 92vw; }
+}
+
+/* iOS/Safari: Dialog scroll + Buttons sichtbar */
+@media (max-width: 900px) {
+  dialog.modal { padding: 0; margin: 0; }
   .modalCard {
-    min-width: auto;
-    width: 92vw;
-  }
-}
-/* === FIX: Action column & buttons in tables === */
-.table td.actions {
-  width: 140px;
-  text-align: right;
-  white-space: nowrap;
-}
-
-.table td.actions .btn {
-  padding: 6px 10px;
-  font-size: 13px;
-  border-radius: 8px;
-}
-/* === Sidebar button cleanup === */
-.sidebar .btn {
-  width: 100%;
-  padding: 8px 10px;
-  font-size: 14px;
-  border-radius: 10px;
-}
-
-.sidebar .sideActions {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 16px;
-}
-/* === Panel header alignment === */
-.panelActions {
-  gap: 8px;
-}
-
-.panelActions .input {
-  max-width: 260px;
-}
-/* === Sidebar tabs refinement === */
-.tab {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 8px 12px;
-  border-radius: 10px;
-  margin-bottom: 6px;
-}
-
-.tab.isActive {
-  background: rgba(0,0,0,0.06);
-  font-weight: 600;
-}
-/* === Mobile tap reliability fixes === */
-button, .btn, .tab, select, input, label {
-  -webkit-tap-highlight-color: rgba(0,0,0,0.12);
-  touch-action: manipulation;
-}
-
-.btn, .tab {
-  cursor: pointer;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-/* make sure nothing overlays taps */
-.panelHeader, .panelActions, .sidebar, .main, .card, .tableWrap {
-  position: relative;
-  z-index: 0;
-}
-.btn, .tab, .input, select, input, label {
-  position: relative;
-  z-index: 1;
-}
-/* === iPhone/Safari: dialog content must scroll === */
-@media (max-width: 900px) {
-  dialog.modal {
-    padding: 0;
-  }
-
-  .modalCard {
-    max-height: 88vh;
-    overflow: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-}
-/* === iPhone/Safari: keep table headers visible inside modal === */
-@media (max-width: 900px) {
-  dialog.modal .tableWrap {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  dialog.modal .table {
-    min-width: 0;          /* wichtig: nicht 560px erzwingen im Modal */
-  }
-
-  dialog.modal .table thead th {
-    position: sticky;
-    top: 0;
-    background: white;
-    z-index: 2;
-  }
-}
-@media (max-width: 900px) {
-  dialog.modal .field > span {
-    opacity: 1;
-    font-weight: 600;
-  }
-}
-/* === iOS Safari FIX: dialog + keyboard === */
-@media (max-width: 900px) {
-  dialog.modal {
-    padding: 0;
-    margin: 0;
-  }
-
-  .modalCard {
-    max-height: 100svh; /* iOS-safe viewport */
+    max-height: 100svh;
     display: flex;
     flex-direction: column;
     overflow: hidden;
   }
-
-  /* Inhalt scrollt */
   .modalCard > :not(.modalActions) {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
   }
-
-  /* Buttons IMMER sichtbar */
   .modalActions {
     position: sticky;
     bottom: 0;
@@ -445,15 +278,9 @@ button, .btn, .tab, select, input, label {
     border-top: 1px solid rgba(0,0,0,0.1);
     z-index: 5;
   }
-}
-@media (max-width: 900px) {
   .modalActions .btn {
     flex: 1;
     padding: 14px;
     font-size: 16px;
   }
 }
-
-
-
-
