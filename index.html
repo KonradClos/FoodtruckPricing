@@ -4,7 +4,6 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Foodtruck Pricing</title>
-
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="./styles.css" />
 </head>
@@ -83,7 +82,6 @@
               <select id="fUnit" class="input">
                 <option value="kg">kg</option>
                 <option value="g">g</option>
-                <option value="mg">mg</option>
                 <option value="l">l</option>
                 <option value="ml">ml</option>
                 <option value="pc">pc</option>
@@ -134,7 +132,7 @@
               <tr>
                 <th>Name</th>
                 <th>MwSt</th>
-                <th>Ziel-Überschuss (€)</th>
+                <th>Ziel-Überschuss (€ / Portion)</th>
                 <th></th>
               </tr>
             </thead>
@@ -167,19 +165,6 @@
             </div>
 
             <div class="field">
-              <span>Portionsgröße (optional)</span>
-              <div style="display:flex; gap:8px;">
-                <input id="rPortionSize" class="input" inputmode="decimal" placeholder="z.B. 250" />
-                <select id="rPortionUnit" class="input" style="max-width:110px;">
-                  <option value="g">g</option>
-                  <option value="mg">mg</option>
-                  <option value="ml">ml</option>
-                  <option value="pc">pc</option>
-                </select>
-              </div>
-            </div>
-
-            <div class="field">
               <span>Schwund/Verlust % (optional)</span>
               <input id="rLoss" class="input" inputmode="decimal" placeholder="z.B. 3" />
             </div>
@@ -190,8 +175,8 @@
             </div>
 
             <div class="field" style="grid-column:1 / -1;">
-              <span>Ziel-Überschuss € pro Portion (optional – nur für €-Modus)</span>
-              <input id="rTargetDB" class="input" inputmode="decimal" placeholder="z.B. 1,50 (leer = nur DB%-Modus)" />
+              <span>Ziel-Überschuss € pro Portion (nur für €-Modus)</span>
+              <input id="rTargetDB" class="input" inputmode="decimal" placeholder="z.B. 1,50" />
             </div>
           </div>
 
@@ -329,10 +314,10 @@
         </div>
 
         <div class="card">
-          <h3>Mindestpreis (aus Zielwert)</h3>
+          <h3>Mindestpreis</h3>
           <div class="grid2">
             <div class="field" id="calcTargetEuroWrap">
-              <span>Ziel-Überschuss (€/Portion)</span>
+              <span>Ziel-Überschuss</span>
               <div class="input readonly" id="calcTargetDB"></div>
             </div>
 
@@ -359,7 +344,7 @@
         </div>
 
         <div class="card">
-          <h3>Marktpreis & Dein Verkaufspreis</h3>
+          <h3>Markt & Verkauf</h3>
           <div class="grid2">
             <div class="field">
               <span>Marktpreis Brutto (optional)</span>
@@ -367,7 +352,7 @@
             </div>
 
             <div class="field">
-              <span>Dein Verkaufspreis Brutto (optional)</span>
+              <span>Dein Verkaufspreis Brutto</span>
               <input id="sellPriceGross" class="input" inputmode="decimal" placeholder="z.B. 15,80" />
             </div>
 
@@ -377,14 +362,14 @@
             </div>
 
             <div class="field">
-              <span>Abstand zum Marktpreis (Dein Brutto - Markt Brutto)</span>
+              <span>Abstand zu Marktpreis (Dein - Markt)</span>
               <div class="input readonly" id="gapToMarket"></div>
             </div>
           </div>
         </div>
 
         <div class="card">
-          <h3>Deckungsbeitrag (aus Deinem Preis)</h3>
+          <h3>Deckungsbeitrag (aus deinem Verkaufspreis)</h3>
           <div class="grid2">
             <div class="field">
               <span>DB €</span>
@@ -394,6 +379,9 @@
               <span>DB %</span>
               <div class="input readonly" id="calcDbPct"></div>
             </div>
+          </div>
+          <div class="small">
+            Hinweis: Wenn kein Verkaufspreis eingetragen ist, wird der DB aus dem Mindestpreis berechnet.
           </div>
         </div>
 
