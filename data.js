@@ -6,7 +6,7 @@ export const STORAGE_KEY = "foodtruck_pricing_v1";
 export function createEmptyData() {
   return {
     meta: {
-      schemaVersion: "1.0.0",
+      schemaVersion: "1.1.0",
       currency: "EUR",
       locale: "de-DE",
       lastSavedISO: new Date().toISOString()
@@ -16,14 +16,12 @@ export function createEmptyData() {
       rounding: { mode: "ceil", step: 0.10 },
       vatRates: { food: 0.07, drink: 0.19 },
       defaults: {
-        pricingMode: "targetDB",
         vatCategory: "food",
         packagingSetId: "pack_default",
         lossPercent: 0.02
       },
-      // NEW: calc preferences
-      calc: { mode: "euro", targetDbPct: 0.25 },
-      validation: { requireTargetDBPerProduct: false }
+      // calc preferences
+      calc: { mode: "euro", targetDbPct: 0.25 }
     },
 
     costModel: {
@@ -38,16 +36,6 @@ export function createEmptyData() {
         },
         custom: []
       },
-      dailyCosts: {
-        enabled: true,
-        standard: {
-          pitchFee: 0,
-          extraPower: 0,
-          helpers: 0,
-          other: 0
-        },
-        custom: []
-      },
       volumeAssumptions: {
         openDaysPerMonth: 12,
         expectedPortionsPerOpenDay: 80,
@@ -58,18 +46,13 @@ export function createEmptyData() {
     catalog: {
       ingredients: [],
       packagingItems: [],
-      packagingSets: [
-        { id: "pack_default", name: "Standard To-Go", items: [] }
-      ]
+      packagingSets: [{ id: "pack_default", name: "Standard To-Go", items: [] }]
     },
 
     products: {
       recipes: [],
       items: []
-    },
-
-    planning: { weeklyPlans: [] },
-    history: { priceChanges: [] }
+    }
   };
 }
 
@@ -81,8 +64,7 @@ export function loadData() {
     return empty;
   }
   try {
-    const data = JSON.parse(raw);
-    return data;
+    return JSON.parse(raw);
   } catch {
     const empty = createEmptyData();
     localStorage.setItem(STORAGE_KEY, JSON.stringify(empty));
