@@ -96,7 +96,7 @@ const calcDbEuro = $("calcDbEuro");
 const calcDbPct = $("calcDbPct");
 const calcErrors = $("calcErrors");
 
-/* NEW: market/sell UI */
+/* Markt & Verkauf */
 const calcMarketGross = $("calcMarketGross");
 const calcSellGross = $("calcSellGross");
 const calcDiffMin = $("calcDiffMin");
@@ -109,12 +109,17 @@ function uid(prefix) {
   return `${prefix}_${Math.random().toString(16).slice(2, 9)}${Date.now().toString(16).slice(-4)}`;
 }
 
-// accepts: "3706", "3.706", "3,706", "3.706,50"
+// accepts: "3706", "3.706", "3,706", "3.706,50", "15," (while typing)
 function normalizeNumber(input) {
   const raw = String(input ?? "").trim();
   if (raw === "") return NaN;
 
   let s = raw.replace(/\s/g, "");
+
+  // allow intermediate typing like "15," or "," -> NaN is ok
+  if (s === "," || s === "." || s.endsWith(",") || s.endsWith(".")) return NaN;
+
+  // "3.706,50" => "3706.50"
   if (s.includes(",") && s.includes(".")) s = s.replace(/\./g, "").replace(",", ".");
   else if (s.includes(",")) s = s.replace(",", ".");
   else if (/^\d{1,3}(\.\d{3})+(\.\d+)?$/.test(s)) s = s.replace(/\./g, "");
@@ -153,7 +158,6 @@ function formatPct(v) {
   if (!Number.isFinite(n)) return "—";
   return (n * 100).toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + " %";
 }
-
 function sumObjectValues(obj) {
   return Object.values(obj || {}).reduce((a, v) => a + (Number(v) || 0), 0);
 }
@@ -219,11 +223,10 @@ function ensureDataShape() {
   if (!data.costModel.fixedCostsMonthly.standard) data.costModel.fixedCostsMonthly.standard = {};
   if (!Array.isArray(data.costModel.fixedCostsMonthly.custom)) data.costModel.fixedCostsMonthly.custom = [];
   if (!data.costModel.volumeAssumptions) {
-    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerOpenDay: null };
+    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerMonth: null };
   }
 
   migrateIngredientBaseUnits();
-
   saveData(data);
 }
 
@@ -321,7 +324,7 @@ function deleteIngredientFromModal() {
   saveData(data); renderStatus(); renderIngredients(); renderRecipes(); renderCalcOptions(); renderCalc();
 }
 
-/* ========== Fixkosten (wie gehabt) ========== */
+/* ========== Fixkosten ========== */
 function readFixedStandardFromInputs() {
   const std = data.costModel.fixedCostsMonthly.standard;
   std.rent = Number.isFinite(normalizeNumber(fc_rent.value)) ? normalizeNumber(fc_rent.value) : 0;
@@ -377,10 +380,11 @@ function renderFixedCustomTable() {
   const rows = data.costModel.fixedCostsMonthly.custom || [];
   fixedCustomTbody.innerHTML = "";
   for (const row of rows) {
+    const amountVal = (row.amount ?? "");
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><input class="input" data-fc="label" data-id="${row.id}" value="${escapeHtml(row.label || "")}" placeholder="z.B. IHK" /></td>
-      <td><input class="input" data-fc="amount" data-id="${row.id}" inputmode="decimal" value="${row.amount ?? ""}" placeholder="0,00" /></td>
+      <td><input class="input" data-fc="amount" data-id="${row.id}" inputmode="decimal" value="${escapeHtml(String(amountVal).replace(".", ","))}" placeholder="0,00" /></td>
       <td class="actions"><button class="btn btnDanger" data-fc="remove" data-id="${row.id}">Entfernen</button></td>
     `;
     fixedCustomTbody.appendChild(tr);
@@ -403,6 +407,8 @@ function addFixedCustomRow() {
   data.costModel.fixedCostsMonthly.custom.push({ id: uid("fc"), label: "", amount: 0 });
   saveData(data); renderStatus(); renderFixedCustomTable(); renderCostsSummary(); renderCalc();
 }
+
+/* FIX: Komma tippen erlauben -> erst bei blur normalisieren */
 function handleFixedCustomInput(e) {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
@@ -410,12 +416,35 @@ function handleFixedCustomInput(e) {
   if (!id || !field) return;
   const row = data.costModel.fixedCostsMonthly.custom.find((x) => x.id === id);
   if (!row) return;
-  if (field === "label") row.label = t.value;
+
+  if (field === "label") {
+    row.label = t.value;
+    saveData(data); renderStatus();
+    return;
+  }
+
+  if (field === "amount") {
+    // live: nur raw speichern (string), NICHT rechnen
+    row._amountRaw = t.value;
+    saveData(data);
+  }
+}
+function handleFixedCustomBlur(e) {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return;
+  const id = t.dataset.id; const field = t.dataset.fc;
+  if (!id || !field) return;
+  const row = data.costModel.fixedCostsMonthly.custom.find((x) => x.id === id);
+  if (!row) return;
+
   if (field === "amount") {
     const v = normalizeNumber(t.value);
     row.amount = Number.isFinite(v) ? v : 0;
+    delete row._amountRaw;
+    saveData(data); renderStatus(); renderCostsSummary(); renderCalc();
+    // format back
+    t.value = row.amount ? String(row.amount).replace(".", ",") : "";
   }
-  saveData(data); renderStatus(); renderCostsSummary(); renderCalc();
 }
 function handleFixedCustomClick(e) {
   const t = e.target;
@@ -426,10 +455,19 @@ function handleFixedCustomClick(e) {
     saveData(data); renderStatus(); renderFixedCustomTable(); renderCostsSummary(); renderCalc();
   }
 }
-function handleCostsInputsChange() {
+
+/* Standard Fixkostenfelder: live erlauben, aber rechnen bei blur */
+function handleCostsStdInputRaw() {
+  // hier speichern wir NICHT, damit tippen sauber bleibt
+}
+function handleCostsStdBlur() {
   readVolumeAssumptionsFromInputs();
   readFixedStandardFromInputs();
   saveData(data); renderStatus(); renderCostsSummary(); renderCalc();
+
+  // format zurück
+  writeFixedStandardToInputs();
+  writeVolumeAssumptionsToInputs();
 }
 
 /* ========== Rezepte (1 Portion) ========== */
@@ -467,7 +505,6 @@ function makeRecIngRow(ingredientId = "", qty = "", unit = "g") {
   return tr;
 }
 function addRecIngredientLine() { recIngTbody.appendChild(makeRecIngRow("", "", "g")); }
-
 function fillPackagingSetOptions(selectedId) {
   const sets = data.catalog.packagingSets || [];
   rPackSet.innerHTML = "";
@@ -594,7 +631,7 @@ function readRecipeFromModal() {
       vatCategory,
       lossPercent: lossPercent != null ? lossPercent : undefined,
       packagingSetId: packSetId,
-      pricing: { targetDBEuro: targetEuro }, // market/sell remain in existing object
+      pricing: { targetDBEuro: targetEuro }, // market/sell bleibt
       ingredients,
       notes: ""
     }
@@ -616,10 +653,8 @@ function saveRecipeFromModal() {
     if (idx >= 0) {
       const prev = data.products.recipes[idx];
       const mergedPricing = { ...(prev.pricing || {}), ...(parsed.recipe.pricing || {}) };
-      // keep market/sell
       if (mergedPricing.marketGross == null) mergedPricing.marketGross = prev?.pricing?.marketGross ?? null;
       if (mergedPricing.sellGross == null) mergedPricing.sellGross = prev?.pricing?.sellGross ?? null;
-
       data.products.recipes[idx] = { ...prev, ...parsed.recipe, id: editingRecId, pricing: mergedPricing };
     }
   }
@@ -674,8 +709,12 @@ function setMarketSellInputsFromRecipe(recipe) {
   const mg = recipe?.pricing?.marketGross;
   const sg = recipe?.pricing?.sellGross;
 
-  calcMarketGross.value = (Number.isFinite(Number(mg)) && Number(mg) > 0) ? String(mg).replace(".", ",") : "";
-  calcSellGross.value = (Number.isFinite(Number(sg)) && Number(sg) > 0) ? String(sg).replace(".", ",") : "";
+  // allow raw string in storage too (during typing)
+  const mgText = (mg == null) ? "" : String(mg);
+  const sgText = (sg == null) ? "" : String(sg);
+
+  calcMarketGross.value = mgText.replace(".", ",");
+  calcSellGross.value = sgText.replace(".", ",");
 }
 
 function clearMarketSellOutputs() {
@@ -685,8 +724,12 @@ function clearMarketSellOutputs() {
   calcSellDb.textContent = "—";
 }
 
+function getSelectedRecipe() {
+  const id = calcRecipeSelect.value;
+  return (data.products.recipes || []).find((x) => x.id === id) || null;
+}
+
 function renderCalc() {
-  // reset
   const fields = [
     calcCostIngredients, calcCostPackaging, calcCostFixed, calcCostTotal,
     calcTargetDB, calcVat, calcGrossRounded, calcNetImplied,
@@ -696,12 +739,8 @@ function renderCalc() {
   setCalcError("");
   clearMarketSellOutputs();
 
-  const id = calcRecipeSelect.value;
-  const r = (data.products.recipes || []).find((x) => x.id === id);
+  const r = getSelectedRecipe();
   if (!r) return setCalcError("Bitte ein Rezept auswählen.");
-
-  // keep inputs in sync
-  setMarketSellInputsFromRecipe(r);
 
   const costRes = calcCostResult(data, "recipe", r, "de");
   if (!costRes.ok) return setCalcError((costRes.errors || []).join(" "));
@@ -715,9 +754,7 @@ function renderCalc() {
 
   const mode = data.settings.calc.mode;
 
-  // min price from mode
   let minGross = NaN;
-  let minNet = NaN;
 
   if (mode === "pct") {
     const pct = Number(data.settings.calc.targetDbPct);
@@ -740,8 +777,8 @@ function renderCalc() {
     calcDbPct.textContent = formatPct(dbPctMin);
 
     minGross = price.grossRounded;
-    minNet = price.netImplied;
   } else {
+    // € mode requires targetDBEuro present
     const resEuro = calcProductResult(data, "recipe", r, "de");
     if (!resEuro.ok) return setCalcError((resEuro.errors || []).join(" "));
     const p = resEuro.result.pricing;
@@ -754,7 +791,6 @@ function renderCalc() {
     calcDbPct.textContent = formatPct(p.dbPct);
 
     minGross = p.grossRounded;
-    minNet = p.netImplied;
   }
 
   // market/sell compare
@@ -769,20 +805,9 @@ function renderCalc() {
     calcSellNet.textContent = formatEuro(sellNetV);
     calcSellDb.textContent = `${formatEuro(dbEuroSell)}  |  ${formatPct(dbPctSell)}`;
 
-    if (Number.isFinite(minGross)) {
-      calcDiffMin.textContent = formatEuroSigned(sellGross - minGross);
-    }
-    if (Number.isFinite(marketGross) && marketGross > 0) {
-      calcDiffMarket.textContent = formatEuroSigned(sellGross - marketGross);
-    } else {
-      calcDiffMarket.textContent = "—";
-    }
-  } else {
-    // no sell price entered: still show diff placeholders
-    calcSellNet.textContent = "—";
-    calcSellDb.textContent = "—";
-    calcDiffMin.textContent = "—";
-    calcDiffMarket.textContent = "—";
+    if (Number.isFinite(minGross)) calcDiffMin.textContent = formatEuroSigned(sellGross - minGross);
+    if (Number.isFinite(marketGross) && marketGross > 0) calcDiffMarket.textContent = formatEuroSigned(sellGross - marketGross);
+    else calcDiffMarket.textContent = "—";
   }
 }
 
@@ -805,19 +830,32 @@ modalForm.addEventListener("submit", (e) => {
   modal.close();
 });
 
-// Fixkosten
+// Fixkosten custom
 btnAddFixedCustom?.addEventListener("click", addFixedCustomRow);
 fixedCustomTbody?.addEventListener("input", handleFixedCustomInput);
+fixedCustomTbody?.addEventListener("blur", handleFixedCustomBlur, true);
 fixedCustomTbody?.addEventListener("click", handleFixedCustomClick);
-openDaysPerMonthEl?.addEventListener("input", handleCostsInputsChange);
-expectedPortionsPerOpenDayEl?.addEventListener("input", handleCostsInputsChange);
-overrideMonthlyPortionsEl?.addEventListener("input", handleCostsInputsChange);
-fc_rent?.addEventListener("input", handleCostsInputsChange);
-fc_insurance?.addEventListener("input", handleCostsInputsChange);
-fc_phoneInternet?.addEventListener("input", handleCostsInputsChange);
-fc_equipmentLeasing?.addEventListener("input", handleCostsInputsChange);
-fc_accounting?.addEventListener("input", handleCostsInputsChange);
-fc_other?.addEventListener("input", handleCostsInputsChange);
+
+// Fixkosten standard + volumes: input nur tippen, blur rechnen
+openDaysPerMonthEl?.addEventListener("input", handleCostsStdInputRaw);
+expectedPortionsPerOpenDayEl?.addEventListener("input", handleCostsStdInputRaw);
+overrideMonthlyPortionsEl?.addEventListener("input", handleCostsStdInputRaw);
+fc_rent?.addEventListener("input", handleCostsStdInputRaw);
+fc_insurance?.addEventListener("input", handleCostsStdInputRaw);
+fc_phoneInternet?.addEventListener("input", handleCostsStdInputRaw);
+fc_equipmentLeasing?.addEventListener("input", handleCostsStdInputRaw);
+fc_accounting?.addEventListener("input", handleCostsStdInputRaw);
+fc_other?.addEventListener("input", handleCostsStdInputRaw);
+
+openDaysPerMonthEl?.addEventListener("blur", handleCostsStdBlur);
+expectedPortionsPerOpenDayEl?.addEventListener("blur", handleCostsStdBlur);
+overrideMonthlyPortionsEl?.addEventListener("blur", handleCostsStdBlur);
+fc_rent?.addEventListener("blur", handleCostsStdBlur);
+fc_insurance?.addEventListener("blur", handleCostsStdBlur);
+fc_phoneInternet?.addEventListener("blur", handleCostsStdBlur);
+fc_equipmentLeasing?.addEventListener("blur", handleCostsStdBlur);
+fc_accounting?.addEventListener("blur", handleCostsStdBlur);
+fc_other?.addEventListener("blur", handleCostsStdBlur);
 
 // Rezepte
 btnAddRecipe?.addEventListener("click", openRecipeModalAdd);
@@ -846,42 +884,80 @@ recForm.addEventListener("submit", (e) => {
 });
 
 // Kalkulation
-calcRecipeSelect?.addEventListener("change", renderCalc);
+calcRecipeSelect?.addEventListener("change", () => {
+  const r = getSelectedRecipe();
+  if (r) setMarketSellInputsFromRecipe(r);
+  renderCalc();
+});
 btnCalcRefresh?.addEventListener("click", renderCalc);
 
+// mode switch (safe)
 calcMode?.addEventListener("change", () => {
   data.settings.calc.mode = calcMode.value;
   saveData(data);
   syncCalcModeUI();
   renderCalc();
 });
+
+// DB%: input tippen erlauben, normalisieren bei blur
 calcDbPctInput?.addEventListener("input", () => {
+  // nur tippen, NICHT rechnen
+});
+calcDbPctInput?.addEventListener("blur", () => {
   const v = normalizeNumber(calcDbPctInput.value);
-  if (Number.isFinite(v)) {
+  if (Number.isFinite(v) && v > 0 && v < 100) {
     data.settings.calc.targetDbPct = v / 100;
     saveData(data);
+    // format back
+    calcDbPctInput.value = String(v).replace(".", ",");
     renderCalc();
   }
 });
 
-// NEW: market/sell input handlers (stored per recipe)
+// Markt/Verkauf: input => RAW speichern (damit Komma bleibt), blur => normalisieren + rechnen
 function updateRecipePricingField(field, rawValue) {
-  const id = calcRecipeSelect.value;
-  const r = (data.products.recipes || []).find((x) => x.id === id);
+  const r = getSelectedRecipe();
   if (!r) return;
-
   if (!r.pricing) r.pricing = {};
 
-  const v = normalizeNumber(rawValue);
-  if (rawValue.trim() === "") r.pricing[field] = null;
+  const raw = String(rawValue ?? "");
+  const v = normalizeNumber(raw);
+
+  if (raw.trim() === "") r.pricing[field] = null;
   else r.pricing[field] = (Number.isFinite(v) && v > 0) ? v : null;
 
   saveData(data);
   renderCalc();
 }
 
-calcMarketGross?.addEventListener("input", () => updateRecipePricingField("marketGross", calcMarketGross.value));
-calcSellGross?.addEventListener("input", () => updateRecipePricingField("sellGross", calcSellGross.value));
+calcMarketGross?.addEventListener("input", () => {
+  const r = getSelectedRecipe();
+  if (!r) return;
+  if (!r.pricing) r.pricing = {};
+  r.pricing.marketGross = calcMarketGross.value; // RAW string during typing
+  saveData(data);
+});
+calcMarketGross?.addEventListener("blur", () => {
+  updateRecipePricingField("marketGross", calcMarketGross.value);
+  // format back if valid
+  const r = getSelectedRecipe();
+  const v = Number(r?.pricing?.marketGross);
+  calcMarketGross.value = (Number.isFinite(v) && v > 0) ? String(v).replace(".", ",") : "";
+});
+
+calcSellGross?.addEventListener("input", () => {
+  const r = getSelectedRecipe();
+  if (!r) return;
+  if (!r.pricing) r.pricing = {};
+  r.pricing.sellGross = calcSellGross.value; // RAW string during typing
+  saveData(data);
+});
+calcSellGross?.addEventListener("blur", () => {
+  updateRecipePricingField("sellGross", calcSellGross.value);
+  const r = getSelectedRecipe();
+  const v = Number(r?.pricing?.sellGross);
+  calcSellGross.value = (Number.isFinite(v) && v > 0) ? String(v).replace(".", ",") : "";
+});
 
 // Export/Import/Reset
 btnExport?.addEventListener("click", () => {
@@ -925,6 +1001,9 @@ function initFromData() {
   calcMode.value = data.settings.calc.mode;
   calcDbPctInput.value = (data.settings.calc.targetDbPct * 100).toString().replace(".", ",");
   syncCalcModeUI();
+
+  const r = getSelectedRecipe();
+  if (r) setMarketSellInputsFromRecipe(r);
 
   renderCalc();
 }
