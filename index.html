@@ -323,8 +323,44 @@
           </div>
         </div>
 
+        <!-- NEW: Markt / Verkauf -->
         <div class="card">
-          <h3>Deckungsbeitrag (aus gerundetem Preis)</h3>
+          <h3>Markt & Verkauf</h3>
+          <div class="grid2">
+            <div class="field">
+              <span>Marktpreis (Brutto)</span>
+              <input id="calcMarketGross" class="input" inputmode="decimal" placeholder="z.B. 18,50" />
+            </div>
+            <div class="field">
+              <span>Dein Verkaufspreis (Brutto)</span>
+              <input id="calcSellGross" class="input" inputmode="decimal" placeholder="z.B. 15,80" />
+            </div>
+
+            <div class="field">
+              <span>Abstand zu Mindestpreis</span>
+              <div class="input readonly" id="calcDiffMin"></div>
+            </div>
+            <div class="field">
+              <span>Abstand zum Marktpreis</span>
+              <div class="input readonly" id="calcDiffMarket"></div>
+            </div>
+
+            <div class="field">
+              <span>Dein Verkaufspreis Netto</span>
+              <div class="input readonly" id="calcSellNet"></div>
+            </div>
+            <div class="field">
+              <span>DB aus deinem Preis</span>
+              <div class="input readonly" id="calcSellDb"></div>
+            </div>
+          </div>
+          <div class="small">
+            Hinweis: Mindestpreis kommt aus dem aktuellen Modus (Ziel-€ oder Ziel-%). Markt/Verkauf sind optional.
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Deckungsbeitrag (aus Mindestpreis)</h3>
           <div class="grid2">
             <div class="field"><span>DB €</span><div class="input readonly" id="calcDbEuro"></div></div>
             <div class="field"><span>DB %</span><div class="input readonly" id="calcDbPct"></div></div>
