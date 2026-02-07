@@ -1,15 +1,107 @@
 // app.js
-import { loadData, saveData, createEmptyData } from "./data.js";
-import { calcCostResult, calcProductResult, calcPriceFromTargetDbPct } from "./engine.js";
+import { loadData, saveData, createEmptyData, STORAGE_KEY } from "./data.js";
+import { calcCostResult, calcPriceFromTargetDbPct, calcProductResult } from "./engine.js";
 
 let data = loadData();
 const $ = (id) => document.getElementById(id);
 
-/* ===== utils ===== */
+/* Top */
+const statusEl = $("status");
+const btnExport = $("btnExport");
+const fileImport = $("fileImport");
+const btnReset = $("btnReset");
+
+/* Tabs */
+const tabButtons = Array.from(document.querySelectorAll(".tab"));
+const panels = Array.from(document.querySelectorAll("[data-panel]"));
+
+/* Zutaten */
+const ingTbody = $("ingTbody");
+const ingEmpty = $("ingEmpty");
+const ingSearch = $("ingSearch");
+const btnAddIngredient = $("btnAddIngredient");
+
+/* Zutaten Modal */
+const modal = $("modal");
+const modalForm = $("modalForm");
+const modalTitle = $("modalTitle");
+const modalError = $("modalError");
+const btnDelete = $("btnDelete");
+const fName = $("fName");
+const fUnit = $("fUnit");
+const fPrice = $("fPrice");
+const fSupplier = $("fSupplier");
+const fNotes = $("fNotes");
+let modalMode = "add";
+let editingId = null;
+
+/* Fixkosten */
+const btnAddFixedCustom = $("btnAddFixedCustom");
+const fixedCustomTbody = $("fixedCustomTbody");
+const openDaysPerMonthEl = $("openDaysPerMonth");
+const expectedPortionsPerOpenDayEl = $("expectedPortionsPerOpenDay");
+const overrideMonthlyPortionsEl = $("overrideMonthlyPortions");
+const computedMonthlyPortionsEl = $("computedMonthlyPortions");
+const fc_rent = $("fc_rent");
+const fc_insurance = $("fc_insurance");
+const fc_phoneInternet = $("fc_phoneInternet");
+const fc_equipmentLeasing = $("fc_equipmentLeasing");
+const fc_accounting = $("fc_accounting");
+const fc_other = $("fc_other");
+const fixedMonthlyTotalEl = $("fixedMonthlyTotal");
+const fixedPerPortionEl = $("fixedPerPortion");
+const costsWarn = $("costsWarn");
+
+/* Rezepte */
+const recSearch = $("recSearch");
+const btnAddRecipe = $("btnAddRecipe");
+const recTbody = $("recTbody");
+const recEmpty = $("recEmpty");
+
+/* Rezept Modal */
+const recModal = $("recModal");
+const recForm = $("recForm");
+const recTitle = $("recTitle");
+const recError = $("recError");
+const btnRecDelete = $("btnRecDelete");
+const rName = $("rName");
+const rVat = $("rVat");
+const rLoss = $("rLoss");
+const rPackSet = $("rPackSet");
+const rTargetDB = $("rTargetDB");
+const btnAddRecIng = $("btnAddRecIng");
+const recIngTbody = $("recIngTbody");
+let recModalMode = "add";
+let editingRecId = null;
+
+/* Kalkulation */
+const calcRecipeSelect = $("calcRecipeSelect");
+const btnCalcRefresh = $("btnCalcRefresh");
+const calcMode = $("calcMode");
+const calcDbPctInput = $("calcDbPctInput");
+const calcDbPctWrap = $("calcDbPctWrap");
+const calcTargetEuroWrap = $("calcTargetEuroWrap");
+
+const calcCostIngredients = $("calcCostIngredients");
+const calcCostPackaging = $("calcCostPackaging");
+const calcCostFixed = $("calcCostFixed");
+const calcCostTotal = $("calcCostTotal");
+
+const calcTargetDB = $("calcTargetDB");
+const calcVat = $("calcVat");
+const calcGrossRounded = $("calcGrossRounded");
+const calcNetImplied = $("calcNetImplied");
+
+const calcDbEuro = $("calcDbEuro");
+const calcDbPct = $("calcDbPct");
+const calcErrors = $("calcErrors");
+
+/* utils */
 function uid(prefix) {
   return `${prefix}_${Math.random().toString(16).slice(2, 9)}${Date.now().toString(16).slice(-4)}`;
 }
 
+// accepts: "3706", "3.706", "3,706", "3.706,50"
 function normalizeNumber(input) {
   const raw = String(input ?? "").trim();
   if (raw === "") return NaN;
@@ -42,7 +134,6 @@ function formatEuro(v) {
   if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
-
 function formatPct(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
@@ -52,9 +143,29 @@ function formatPct(v) {
 function sumObjectValues(obj) {
   return Object.values(obj || {}).reduce((a, v) => a + (Number(v) || 0), 0);
 }
-
 function getVatLabel(vatCategory) {
   return vatCategory === "drink" ? "Drink (19%)" : "Food (7%)";
+}
+
+/** MIGRATION: old ingredient baseUnit g->kg, ml->l (price adjusted) */
+function migrateIngredientBaseUnits() {
+  const ings = data?.catalog?.ingredients || [];
+  for (const ing of ings) {
+    const u = (ing.baseUnit || "").toLowerCase();
+    if (u === "g") {
+      // price per g -> price per kg
+      const p = Number(ing.pricePerBaseUnit) || 0;
+      ing.baseUnit = "kg";
+      ing.pricePerBaseUnit = p * 1000;
+    } else if (u === "ml") {
+      // price per ml -> price per l
+      const p = Number(ing.pricePerBaseUnit) || 0;
+      ing.baseUnit = "l";
+      ing.pricePerBaseUnit = p * 1000;
+    } else if (u === "stk") {
+      ing.baseUnit = "pc";
+    }
+  }
 }
 
 function ensureDataShape() {
@@ -62,6 +173,7 @@ function ensureDataShape() {
   if (!data.settings.rounding) data.settings.rounding = { mode: "ceil", step: 0.10 };
   if (!data.settings.vatRates) data.settings.vatRates = { food: 0.07, drink: 0.19 };
   if (!data.settings.defaults) data.settings.defaults = { vatCategory: "food", packagingSetId: "pack_default", lossPercent: 0.02 };
+
   if (!data.settings.calc) data.settings.calc = { mode: "euro", targetDbPct: 0.25 };
   if (!data.settings.calc.mode) data.settings.calc.mode = "euro";
   if (data.settings.calc.targetDbPct == null) data.settings.calc.targetDbPct = 0.25;
@@ -91,29 +203,17 @@ function ensureDataShape() {
     data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerMonth: null };
   }
 
-  // cleanup old dailyCosts if present
-  if (data.costModel.dailyCosts) delete data.costModel.dailyCosts;
+  migrateIngredientBaseUnits();
 
   saveData(data);
 }
 
-/* ===== top ===== */
-const statusEl = $("status");
-const btnExport = $("btnExport");
-const fileImport = $("fileImport");
-const btnReset = $("btnReset");
-
-/* ===== tabs ===== */
-const tabButtons = Array.from(document.querySelectorAll(".tab"));
-const panels = Array.from(document.querySelectorAll("[data-panel]"));
-
+/* tabs */
 function setTab(name) {
   tabButtons.forEach((b) => b.classList.toggle("isActive", b.dataset.tab === name));
   panels.forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== name));
 }
-tabButtons.forEach((btn) => btn.addEventListener("click", () => setTab(btn.dataset.tab)));
 
-/* ===== status ===== */
 function renderStatus() {
   ensureDataShape();
   statusEl.textContent = JSON.stringify(
@@ -128,36 +228,13 @@ function renderStatus() {
   );
 }
 
-/* =======================
-   Zutaten
-======================= */
-const ingTbody = $("ingTbody");
-const ingEmpty = $("ingEmpty");
-const ingSearch = $("ingSearch");
-const btnAddIngredient = $("btnAddIngredient");
-
-/* Zutaten Modal */
-const modal = $("modal");
-const modalForm = $("modalForm");
-const modalTitle = $("modalTitle");
-const modalError = $("modalError");
-const btnDelete = $("btnDelete");
-const fName = $("fName");
-const fUnit = $("fUnit");
-const fPrice = $("fPrice");
-const fSupplier = $("fSupplier");
-const fNotes = $("fNotes");
-
-let modalMode = "add";
-let editingId = null;
-
+/* ========== Zutaten ========== */
 function getFilteredIngredients() {
   const q = (ingSearch?.value || "").trim().toLowerCase();
   const list = data.catalog.ingredients || [];
   if (!q) return list;
   return list.filter((x) => (x.name || "").toLowerCase().includes(q) || (x.supplier || "").toLowerCase().includes(q));
 }
-
 function renderIngredients() {
   const listAll = data.catalog.ingredients || [];
   const list = getFilteredIngredients();
@@ -175,12 +252,10 @@ function renderIngredients() {
     ingTbody.appendChild(tr);
   }
 }
-
 function showModalError(text) {
   modalError.textContent = text;
   modalError.classList.remove("hidden");
 }
-
 function openIngredientModalAdd() {
   modalMode = "add"; editingId = null;
   modalTitle.textContent = "Zutat hinzufügen";
@@ -189,7 +264,6 @@ function openIngredientModalAdd() {
   fName.value = ""; fUnit.value = "kg"; fPrice.value = ""; fSupplier.value = ""; fNotes.value = "";
   modal.showModal(); fName.focus();
 }
-
 function openIngredientModalEdit(id) {
   const ing = data.catalog.ingredients.find((x) => x.id === id);
   if (!ing) return;
@@ -204,14 +278,12 @@ function openIngredientModalEdit(id) {
   fNotes.value = ing.notes ?? "";
   modal.showModal(); fName.focus();
 }
-
 function saveIngredientFromModal() {
   const name = (fName.value || "").trim();
-  const baseUnit = (fUnit.value || "").trim();
+  const baseUnit = (fUnit.value || "").trim(); // kg/l/pc
   const price = normalizeNumber(fPrice.value);
   const supplier = (fSupplier.value || "").trim();
   const notes = (fNotes.value || "").trim();
-
   if (!name) return showModalError("Name ist erforderlich.");
   if (!baseUnit) return showModalError("Einheit ist erforderlich.");
   if (!Number.isFinite(price) || price < 0) return showModalError("Preis muss eine Zahl ≥ 0 sein.");
@@ -222,39 +294,15 @@ function saveIngredientFromModal() {
     const idx = data.catalog.ingredients.findIndex((x) => x.id === editingId);
     if (idx >= 0) data.catalog.ingredients[idx] = { ...data.catalog.ingredients[idx], name, baseUnit, pricePerBaseUnit: price, supplier, notes };
   }
-
-  saveData(data);
-  renderStatus(); renderIngredients(); renderRecipes(); renderCalcOptions();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderIngredients(); renderRecipes(); renderCalcOptions(); renderCalc();
 }
-
 function deleteIngredientFromModal() {
   if (!editingId) return;
   data.catalog.ingredients = data.catalog.ingredients.filter((x) => x.id !== editingId);
-  saveData(data);
-  renderStatus(); renderIngredients(); renderRecipes(); renderCalcOptions();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderIngredients(); renderRecipes(); renderCalcOptions(); renderCalc();
 }
 
-/* =======================
-   Fixkosten
-======================= */
-const btnAddFixedCustom = $("btnAddFixedCustom");
-const fixedCustomTbody = $("fixedCustomTbody");
-const openDaysPerMonthEl = $("openDaysPerMonth");
-const expectedPortionsPerOpenDayEl = $("expectedPortionsPerOpenDay");
-const overrideMonthlyPortionsEl = $("overrideMonthlyPortions");
-const computedMonthlyPortionsEl = $("computedMonthlyPortions");
-const fc_rent = $("fc_rent");
-const fc_insurance = $("fc_insurance");
-const fc_phoneInternet = $("fc_phoneInternet");
-const fc_equipmentLeasing = $("fc_equipmentLeasing");
-const fc_accounting = $("fc_accounting");
-const fc_other = $("fc_other");
-const fixedMonthlyTotalEl = $("fixedMonthlyTotal");
-const fixedPerPortionEl = $("fixedPerPortion");
-const costsWarn = $("costsWarn");
-
+/* ========== Fixkosten (wie gehabt) ========== */
 function readFixedStandardFromInputs() {
   const std = data.costModel.fixedCostsMonthly.standard;
   std.rent = Number.isFinite(normalizeNumber(fc_rent.value)) ? normalizeNumber(fc_rent.value) : 0;
@@ -264,7 +312,6 @@ function readFixedStandardFromInputs() {
   std.accounting = Number.isFinite(normalizeNumber(fc_accounting.value)) ? normalizeNumber(fc_accounting.value) : 0;
   std.other = Number.isFinite(normalizeNumber(fc_other.value)) ? normalizeNumber(fc_other.value) : 0;
 }
-
 function writeFixedStandardToInputs() {
   const std = data.costModel.fixedCostsMonthly.standard || {};
   fc_rent.value = std.rent ? String(std.rent).replace(".", ",") : "";
@@ -274,36 +321,30 @@ function writeFixedStandardToInputs() {
   fc_accounting.value = std.accounting ? String(std.accounting).replace(".", ",") : "";
   fc_other.value = std.other ? String(std.other).replace(".", ",") : "";
 }
-
 function readVolumeAssumptionsFromInputs() {
   const vol = data.costModel.volumeAssumptions;
   const openDays = normalizeInt(openDaysPerMonthEl.value);
   const perDay = normalizeInt(expectedPortionsPerOpenDayEl.value);
   const override = normalizeInt(overrideMonthlyPortionsEl.value);
-
   if (openDays != null) vol.openDaysPerMonth = openDays;
   if (perDay != null) vol.expectedPortionsPerOpenDay = perDay;
   vol.overrideExpectedPortionsPerMonth = (overrideMonthlyPortionsEl.value.trim() === "") ? null : override;
 }
-
 function writeVolumeAssumptionsToInputs() {
   const vol = data.costModel.volumeAssumptions || {};
   openDaysPerMonthEl.value = (vol.openDaysPerMonth ?? "").toString();
   expectedPortionsPerOpenDayEl.value = (vol.expectedPortionsPerOpenDay ?? "").toString();
   overrideMonthlyPortionsEl.value = (vol.overrideExpectedPortionsPerMonth ?? "").toString().replace("null", "");
 }
-
 function calcMonthlyPortions() {
   const vol = data.costModel.volumeAssumptions || {};
   const override = vol.overrideExpectedPortionsPerMonth;
   if (Number.isFinite(Number(override)) && Number(override) > 0) return Number(override);
-
   const openDays = Number(vol.openDaysPerMonth);
   const perDay = Number(vol.expectedPortionsPerOpenDay);
   if (Number.isFinite(openDays) && openDays > 0 && Number.isFinite(perDay) && perDay > 0) return openDays * perDay;
   return 0;
 }
-
 function calcFixedTotalsLocal() {
   const fixed = data.costModel.fixedCostsMonthly || {};
   const stdTotal = sumObjectValues(fixed.standard);
@@ -313,7 +354,6 @@ function calcFixedTotalsLocal() {
   const perPortion = monthlyPortions > 0 ? monthlyTotal / monthlyPortions : 0;
   return { monthlyTotal, monthlyPortions, perPortion };
 }
-
 function renderFixedCustomTable() {
   const rows = data.costModel.fixedCostsMonthly.custom || [];
   fixedCustomTbody.innerHTML = "";
@@ -327,13 +367,11 @@ function renderFixedCustomTable() {
     fixedCustomTbody.appendChild(tr);
   }
 }
-
 function renderCostsSummary() {
   const { monthlyTotal, monthlyPortions, perPortion } = calcFixedTotalsLocal();
   computedMonthlyPortionsEl.textContent = monthlyPortions > 0 ? `${monthlyPortions}` : "—";
   fixedMonthlyTotalEl.textContent = formatEuro(monthlyTotal);
   fixedPerPortionEl.textContent = (monthlyPortions > 0) ? formatEuro(perPortion) : "—";
-
   if (monthlyPortions <= 0) {
     costsWarn.textContent = "Bitte Monatsportionen korrekt setzen (Öffnungstage & Portionen/Tag oder Override).";
     costsWarn.classList.remove("hidden");
@@ -342,14 +380,10 @@ function renderCostsSummary() {
     costsWarn.textContent = "";
   }
 }
-
 function addFixedCustomRow() {
   data.costModel.fixedCostsMonthly.custom.push({ id: uid("fc"), label: "", amount: 0 });
-  saveData(data);
-  renderStatus(); renderFixedCustomTable(); renderCostsSummary();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderFixedCustomTable(); renderCostsSummary(); renderCalc();
 }
-
 function handleFixedCustomInput(e) {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
@@ -357,68 +391,35 @@ function handleFixedCustomInput(e) {
   if (!id || !field) return;
   const row = data.costModel.fixedCostsMonthly.custom.find((x) => x.id === id);
   if (!row) return;
-
   if (field === "label") row.label = t.value;
   if (field === "amount") {
     const v = normalizeNumber(t.value);
     row.amount = Number.isFinite(v) ? v : 0;
   }
-  saveData(data);
-  renderStatus(); renderCostsSummary();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderCostsSummary(); renderCalc();
 }
-
 function handleFixedCustomClick(e) {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   if (t.dataset.fc === "remove") {
     const id = t.dataset.id;
     data.costModel.fixedCostsMonthly.custom = data.costModel.fixedCostsMonthly.custom.filter((x) => x.id !== id);
-    saveData(data);
-    renderStatus(); renderFixedCustomTable(); renderCostsSummary();
-    renderCalc(true);
+    saveData(data); renderStatus(); renderFixedCustomTable(); renderCostsSummary(); renderCalc();
   }
 }
-
 function handleCostsInputsChange() {
   readVolumeAssumptionsFromInputs();
   readFixedStandardFromInputs();
-  saveData(data);
-  renderStatus(); renderCostsSummary();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderCostsSummary(); renderCalc();
 }
 
-/* =======================
-   Rezepte (pro Portion)
-======================= */
-const recSearch = $("recSearch");
-const btnAddRecipe = $("btnAddRecipe");
-const recTbody = $("recTbody");
-const recEmpty = $("recEmpty");
-
-const recModal = $("recModal");
-const recForm = $("recForm");
-const recTitle = $("recTitle");
-const recError = $("recError");
-const btnRecDelete = $("btnRecDelete");
-const rName = $("rName");
-const rVat = $("rVat");
-const rLoss = $("rLoss");
-const rPackSet = $("rPackSet");
-const rTargetDB = $("rTargetDB");
-const btnAddRecIng = $("btnAddRecIng");
-const recIngTbody = $("recIngTbody");
-
-let recModalMode = "add";
-let editingRecId = null;
-
+/* ========== Rezepte (1 Portion) ========== */
 function getFilteredRecipes() {
   const q = (recSearch?.value || "").trim().toLowerCase();
   const list = data.products.recipes || [];
   if (!q) return list;
   return list.filter((r) => (r.name || "").toLowerCase().includes(q));
 }
-
 function ingredientOptionsHtml(selectedId) {
   const ings = data.catalog.ingredients || [];
   if (ings.length === 0) return `<option value="">(Keine Zutaten – zuerst Zutaten anlegen)</option>`;
@@ -431,24 +432,22 @@ function ingredientOptionsHtml(selectedId) {
     })
   ].join("");
 }
-
 function makeUnitSelectHtml(selectedUnit) {
-  const units = ["kg", "g", "mg", "l", "ml", "pc"];
+  // per portion: g/ml/pc
+  const units = ["g", "ml", "pc"];
   return units.map((u) => `<option value="${u}" ${u === selectedUnit ? "selected" : ""}>${u}</option>`).join("");
 }
-
 function makeRecIngRow(ingredientId = "", qty = "", unit = "g") {
   const tr = document.createElement("tr");
   const qtyVal = qty === "" || qty == null ? "" : String(qty).replace(".", ",");
   tr.innerHTML = `
     <td><select class="input" data-rig="ing">${ingredientOptionsHtml(ingredientId)}</select></td>
-    <td><input class="input" data-rig="qty" inputmode="decimal" placeholder="z.B. 250" value="${escapeHtml(qtyVal)}" /></td>
+    <td><input class="input" data-rig="qty" inputmode="decimal" placeholder="z.B. 180" value="${escapeHtml(qtyVal)}" /></td>
     <td><select class="input" data-rig="unit">${makeUnitSelectHtml(unit)}</select></td>
     <td class="actions"><button class="btn btnDanger" data-rig="remove" formnovalidate>Entfernen</button></td>
   `;
   return tr;
 }
-
 function addRecIngredientLine() { recIngTbody.appendChild(makeRecIngRow("", "", "g")); }
 
 function fillPackagingSetOptions(selectedId) {
@@ -471,18 +470,19 @@ function renderRecipes() {
 
   recTbody.innerHTML = "";
   for (const r of list) {
-    const target = r?.pricing?.targetDBEuro;
     const tr = document.createElement("tr");
+    const target = r?.pricing?.targetDBEuro;
     tr.innerHTML = `
       <td>${escapeHtml(r.name)}</td>
       <td>${escapeHtml(getVatLabel(r.vatCategory))}</td>
-      <td>${Number.isFinite(Number(target)) && Number(target) > 0 ? formatEuro(target).replace(" €","") : "—"}</td>
+      <td>${(Number.isFinite(Number(target)) && Number(target) > 0) ? formatEuro(target).replace(" €","") : "—"}</td>
       <td class="actions"><button class="btn" data-rec="edit" data-id="${r.id}">Bearbeiten</button></td>
     `;
     recTbody.appendChild(tr);
   }
 
   renderCalcOptions();
+  renderCalc();
 }
 
 function showRecError(text) {
@@ -492,10 +492,11 @@ function showRecError(text) {
 
 function openRecipeModalAdd() {
   recModalMode = "add"; editingRecId = null;
-  recTitle.textContent = "Rezept hinzufügen";
+  recTitle.textContent = "Rezept hinzufügen (1 Portion)";
   btnRecDelete.classList.add("hidden");
   recError.classList.add("hidden"); recError.textContent = "";
-  rName.value = ""; rVat.value = "food"; rLoss.value = "";
+  rName.value = ""; rVat.value = "food";
+  rLoss.value = "";
   fillPackagingSetOptions("pack_default");
   rTargetDB.value = "";
   recIngTbody.innerHTML = ""; addRecIngredientLine();
@@ -506,19 +507,20 @@ function openRecipeModalEdit(id) {
   const r = data.products.recipes.find((x) => x.id === id);
   if (!r) return;
   recModalMode = "edit"; editingRecId = id;
-  recTitle.textContent = "Rezept bearbeiten";
+  recTitle.textContent = "Rezept bearbeiten (1 Portion)";
   btnRecDelete.classList.remove("hidden");
   recError.classList.add("hidden"); recError.textContent = "";
   rName.value = r.name ?? "";
   rVat.value = r.vatCategory ?? "food";
   const lossPct = r.lossPercent != null ? (Number(r.lossPercent) * 100) : "";
-  rLoss.value = lossPct !== "" && Number.isFinite(lossPct) ? String(lossPct).replace(".", ",") : "";
+  rLoss.value = lossPct !== "" ? String(lossPct).replace(".", ",") : "";
   fillPackagingSetOptions(r.packagingSetId ?? "pack_default");
-  const t = r?.pricing?.targetDBEuro;
-  rTargetDB.value = (Number.isFinite(Number(t)) && Number(t) > 0) ? String(t).replace(".", ",") : "";
+  rTargetDB.value = r?.pricing?.targetDBEuro != null ? String(r.pricing.targetDBEuro).replace(".", ",") : "";
+
   recIngTbody.innerHTML = "";
   for (const line of (r.ingredients || [])) recIngTbody.appendChild(makeRecIngRow(line.ingredientId, line.qty, line.unit));
   if ((r.ingredients || []).length === 0) addRecIngredientLine();
+
   recModal.showModal(); rName.focus();
 }
 
@@ -526,6 +528,15 @@ function readRecipeFromModal() {
   const name = (rName.value || "").trim();
   const vatCategory = (rVat.value || "food").trim();
   if (!name) return { ok: false, error: "Name ist erforderlich." };
+
+  // target € optional (only needed for € mode)
+  let targetEuro = null;
+  const tRaw = String(rTargetDB.value || "").trim();
+  if (tRaw !== "") {
+    const t = normalizeNumber(tRaw);
+    if (!Number.isFinite(t) || t <= 0) return { ok: false, error: "Ziel-Überschuss (€) muss leer sein oder > 0." };
+    targetEuro = t;
+  }
 
   let lossPercent = null;
   const lpRaw = String(rLoss.value || "").trim();
@@ -536,14 +547,6 @@ function readRecipeFromModal() {
   }
 
   const packSetId = (rPackSet.value || "pack_default").trim();
-
-  let targetDBEuro = null;
-  const tRaw = String(rTargetDB.value || "").trim();
-  if (tRaw !== "") {
-    const t = normalizeNumber(tRaw);
-    if (!Number.isFinite(t) || t <= 0) return { ok: false, error: "Ziel-Überschuss (€) muss leer sein oder > 0." };
-    targetDBEuro = t;
-  }
 
   const ingredients = [];
   const rows = Array.from(recIngTbody.querySelectorAll("tr"));
@@ -573,11 +576,7 @@ function readRecipeFromModal() {
       vatCategory,
       lossPercent: lossPercent != null ? lossPercent : undefined,
       packagingSetId: packSetId,
-      pricing: {
-        targetDBEuro: targetDBEuro,
-        marketPriceGross: null,
-        sellPriceGross: null
-      },
+      pricing: { targetDBEuro: targetEuro },
       ingredients,
       notes: ""
     }
@@ -598,53 +597,20 @@ function saveRecipeFromModal() {
     }
   }
 
-  saveData(data);
-  renderStatus(); renderRecipes(); renderCalcOptions();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderRecipes();
 }
 
 function deleteRecipeFromModal() {
   if (!editingRecId) return;
   data.products.recipes = data.products.recipes.filter((x) => x.id !== editingRecId);
-  saveData(data);
-  renderStatus(); renderRecipes(); renderCalcOptions();
-  renderCalc(true);
+  saveData(data); renderStatus(); renderRecipes();
 }
 
-/* =======================
-   Kalkulation
-======================= */
-const calcRecipeSelect = $("calcRecipeSelect");
-const btnCalcRefresh = $("btnCalcRefresh");
-const calcMode = $("calcMode");
-const calcDbPctInput = $("calcDbPctInput");
-const calcDbPctWrap = $("calcDbPctWrap");
-const calcTargetEuroWrap = $("calcTargetEuroWrap");
-
-const calcCostIngredients = $("calcCostIngredients");
-const calcCostPackaging = $("calcCostPackaging");
-const calcCostFixed = $("calcCostFixed");
-const calcCostTotal = $("calcCostTotal");
-
-const calcTargetDB = $("calcTargetDB");
-const calcVat = $("calcVat");
-const calcMinGross = $("calcMinGross");
-const calcMinNet = $("calcMinNet");
-
-const marketPriceGross = $("marketPriceGross");
-const sellPriceGross = $("sellPriceGross");
-const sellNet = $("sellNet");
-const gapToMarket = $("gapToMarket");
-
-const calcDbEuro = $("calcDbEuro");
-const calcDbPct = $("calcDbPct");
-const calcErrors = $("calcErrors");
-
+/* ========== Kalkulation ========== */
 function setCalcError(text) {
   if (!text) { calcErrors.classList.add("hidden"); calcErrors.textContent = ""; }
   else { calcErrors.textContent = text; calcErrors.classList.remove("hidden"); }
 }
-
 function renderCalcOptions() {
   const list = data.products.recipes || [];
   calcRecipeSelect.innerHTML = "";
@@ -665,7 +631,6 @@ function renderCalcOptions() {
   if (current && list.some((r) => r.id === current)) calcRecipeSelect.value = current;
   else calcRecipeSelect.value = list[0].id;
 }
-
 function syncCalcModeUI() {
   const mode = data.settings.calc.mode;
   if (mode === "pct") {
@@ -677,15 +642,13 @@ function syncCalcModeUI() {
   }
 }
 
-function renderCalc(forceRebind = false) {
-  setCalcError("");
-
-  // reset outputs
-  [
+function renderCalc() {
+  const fields = [
     calcCostIngredients, calcCostPackaging, calcCostFixed, calcCostTotal,
-    calcTargetDB, calcVat, calcMinGross, calcMinNet,
-    sellNet, gapToMarket, calcDbEuro, calcDbPct
-  ].forEach((el) => el.textContent = "—");
+    calcTargetDB, calcVat, calcGrossRounded, calcNetImplied, calcDbEuro, calcDbPct
+  ];
+  for (const el of fields) el.textContent = "—";
+  setCalcError("");
 
   const id = calcRecipeSelect.value;
   const r = (data.products.recipes || []).find((x) => x.id === id);
@@ -703,9 +666,6 @@ function renderCalc(forceRebind = false) {
 
   const mode = data.settings.calc.mode;
 
-  let minGross = null;
-  let minNet = null;
-
   if (mode === "pct") {
     const pct = Number(data.settings.calc.targetDbPct);
     const price = calcPriceFromTargetDbPct({
@@ -718,71 +678,39 @@ function renderCalc(forceRebind = false) {
     if (!price.ok) return setCalcError(price.error);
 
     calcTargetDB.textContent = formatPct(pct);
-    minGross = price.grossRounded;
-    minNet = price.netImplied;
+    calcGrossRounded.textContent = formatEuro(price.grossRounded);
+    calcNetImplied.textContent = formatEuro(price.netImplied);
+
+    const dbEuro = price.netImplied - out.costs.totalCostPerPortion;
+    const dbPctV = price.netImplied > 0 ? dbEuro / price.netImplied : 0;
+    calcDbEuro.textContent = formatEuro(dbEuro);
+    calcDbPct.textContent = formatPct(dbPctV);
   } else {
-    const targetEuro = Number(r?.pricing?.targetDBEuro);
-    if (!Number.isFinite(targetEuro) || targetEuro <= 0) {
-      return setCalcError("Im €-Modus braucht das Rezept einen Ziel-Überschuss > 0 (im Rezept eintragen).");
-    }
     const resEuro = calcProductResult(data, "recipe", r, "de");
     if (!resEuro.ok) return setCalcError((resEuro.errors || []).join(" "));
-    calcTargetDB.textContent = formatEuro(resEuro.result.pricing.targetEuro);
-    minGross = resEuro.result.pricing.grossRounded;
-    minNet = resEuro.result.pricing.netImplied;
+    const p = resEuro.result.pricing;
+
+    calcTargetDB.textContent = formatEuro(p.targetEuro);
+    calcGrossRounded.textContent = formatEuro(p.grossRounded);
+    calcNetImplied.textContent = formatEuro(p.netImplied);
+
+    calcDbEuro.textContent = formatEuro(p.dbEuro);
+    calcDbPct.textContent = formatPct(p.dbPct);
   }
-
-  calcMinGross.textContent = formatEuro(minGross);
-  calcMinNet.textContent = formatEuro(minNet);
-
-  // Bind inputs per recipe (persist)
-  if (forceRebind || marketPriceGross.dataset.boundId !== r.id) {
-    const m = r?.pricing?.marketPriceGross;
-    const s = r?.pricing?.sellPriceGross;
-    marketPriceGross.value = Number.isFinite(Number(m)) ? String(m).replace(".", ",") : "";
-    sellPriceGross.value = Number.isFinite(Number(s)) ? String(s).replace(".", ",") : "";
-    marketPriceGross.dataset.boundId = r.id;
-    sellPriceGross.dataset.boundId = r.id;
-  }
-
-  const marketGross = normalizeNumber(marketPriceGross.value);
-  const sellGross = normalizeNumber(sellPriceGross.value);
-
-  // compute db using sell price if given; else from min price
-  let usedNet = Number(minNet);
-  if (Number.isFinite(sellGross) && sellGross > 0) {
-    usedNet = sellGross / (1 + out.vatRate);
-    sellNet.textContent = formatEuro(usedNet);
-  }
-
-  const dbEuro = usedNet - out.costs.totalCostPerPortion;
-  const dbPct = usedNet > 0 ? dbEuro / usedNet : 0;
-  calcDbEuro.textContent = formatEuro(dbEuro);
-  calcDbPct.textContent = formatPct(dbPct);
-
-  if (Number.isFinite(marketGross) && marketGross > 0 && Number.isFinite(sellGross) && sellGross > 0) {
-    gapToMarket.textContent = formatEuro(sellGross - marketGross);
-  }
-
-  // persist market/sell
-  if (!r.pricing) r.pricing = {};
-  r.pricing.marketPriceGross = Number.isFinite(marketGross) ? marketGross : null;
-  r.pricing.sellPriceGross = Number.isFinite(sellGross) ? sellGross : null;
-  saveData(data);
 }
 
-/* =======================
-   Events
-======================= */
+/* ========== Events ========== */
+tabButtons.forEach((btn) => btn.addEventListener("click", () => setTab(btn.dataset.tab)));
+
 // Zutaten
 btnAddIngredient?.addEventListener("click", openIngredientModalAdd);
 ingSearch?.addEventListener("input", renderIngredients);
-ingTbody?.addEventListener("click", (e) => {
+ingTbody.addEventListener("click", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   if (t.dataset.action === "edit") openIngredientModalEdit(t.dataset.id);
 });
-modalForm?.addEventListener("submit", (e) => {
+modalForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const action = e.submitter?.value || "save";
   if (action === "save") saveIngredientFromModal();
@@ -807,13 +735,13 @@ fc_other?.addEventListener("input", handleCostsInputsChange);
 // Rezepte
 btnAddRecipe?.addEventListener("click", openRecipeModalAdd);
 recSearch?.addEventListener("input", renderRecipes);
-recTbody?.addEventListener("click", (e) => {
+recTbody.addEventListener("click", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   if (t.dataset.rec === "edit") openRecipeModalEdit(t.dataset.id);
 });
 btnAddRecIng?.addEventListener("click", (e) => { e.preventDefault(); addRecIngredientLine(); });
-recIngTbody?.addEventListener("click", (e) => {
+recIngTbody.addEventListener("click", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   if (t.dataset.rig === "remove") {
@@ -822,7 +750,7 @@ recIngTbody?.addEventListener("click", (e) => {
     if (tr) tr.remove();
   }
 });
-recForm?.addEventListener("submit", (e) => {
+recForm.addEventListener("submit", (e) => {
   e.preventDefault();
   const action = e.submitter?.value || "save";
   if (action === "save") saveRecipeFromModal();
@@ -831,24 +759,22 @@ recForm?.addEventListener("submit", (e) => {
 });
 
 // Kalkulation
-calcRecipeSelect?.addEventListener("change", () => renderCalc(true));
-btnCalcRefresh?.addEventListener("click", () => renderCalc(true));
+calcRecipeSelect?.addEventListener("change", renderCalc);
+btnCalcRefresh?.addEventListener("click", renderCalc);
 calcMode?.addEventListener("change", () => {
   data.settings.calc.mode = calcMode.value;
   saveData(data);
   syncCalcModeUI();
-  renderCalc(true);
+  renderCalc();
 });
 calcDbPctInput?.addEventListener("input", () => {
   const v = normalizeNumber(calcDbPctInput.value);
   if (Number.isFinite(v)) {
     data.settings.calc.targetDbPct = v / 100;
     saveData(data);
-    renderCalc(true);
+    renderCalc();
   }
 });
-marketPriceGross?.addEventListener("input", () => renderCalc(false));
-sellPriceGross?.addEventListener("input", () => renderCalc(false));
 
 // Export/Import/Reset
 btnExport?.addEventListener("click", () => {
@@ -859,7 +785,6 @@ btnExport?.addEventListener("click", () => {
   a.click();
   URL.revokeObjectURL(url);
 });
-
 fileImport?.addEventListener("change", async (e) => {
   const file = e.target.files?.[0];
   if (!file) return;
@@ -869,17 +794,14 @@ fileImport?.addEventListener("change", async (e) => {
   initFromData();
   fileImport.value = "";
 });
-
 btnReset?.addEventListener("click", () => {
-  localStorage.clear();
+  localStorage.removeItem(STORAGE_KEY);
   data = createEmptyData();
   saveData(data);
   initFromData();
 });
 
-/* =======================
-   init
-======================= */
+/* init */
 function initFromData() {
   ensureDataShape();
   renderStatus();
@@ -897,9 +819,7 @@ function initFromData() {
   calcDbPctInput.value = (data.settings.calc.targetDbPct * 100).toString().replace(".", ",");
   syncCalcModeUI();
 
-  marketPriceGross.dataset.boundId = "";
-  sellPriceGross.dataset.boundId = "";
-  renderCalc(true);
+  renderCalc();
 }
 
 setTab("ingredients");
