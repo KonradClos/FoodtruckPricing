@@ -96,6 +96,14 @@ const calcDbEuro = $("calcDbEuro");
 const calcDbPct = $("calcDbPct");
 const calcErrors = $("calcErrors");
 
+/* NEW: market/sell UI */
+const calcMarketGross = $("calcMarketGross");
+const calcSellGross = $("calcSellGross");
+const calcDiffMin = $("calcDiffMin");
+const calcDiffMarket = $("calcDiffMarket");
+const calcSellNet = $("calcSellNet");
+const calcSellDb = $("calcSellDb");
+
 /* utils */
 function uid(prefix) {
   return `${prefix}_${Math.random().toString(16).slice(2, 9)}${Date.now().toString(16).slice(-4)}`;
@@ -134,6 +142,12 @@ function formatEuro(v) {
   if (!Number.isFinite(n)) return "—";
   return n.toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
 }
+function formatEuroSigned(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "—";
+  const abs = Math.abs(n).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " €";
+  return (n >= 0 ? "+" : "−") + abs;
+}
 function formatPct(v) {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
@@ -153,12 +167,10 @@ function migrateIngredientBaseUnits() {
   for (const ing of ings) {
     const u = (ing.baseUnit || "").toLowerCase();
     if (u === "g") {
-      // price per g -> price per kg
       const p = Number(ing.pricePerBaseUnit) || 0;
       ing.baseUnit = "kg";
       ing.pricePerBaseUnit = p * 1000;
     } else if (u === "ml") {
-      // price per ml -> price per l
       const p = Number(ing.pricePerBaseUnit) || 0;
       ing.baseUnit = "l";
       ing.pricePerBaseUnit = p * 1000;
@@ -190,6 +202,13 @@ function ensureDataShape() {
   if (!Array.isArray(data.products.recipes)) data.products.recipes = [];
   if (!Array.isArray(data.products.items)) data.products.items = [];
 
+  // ensure pricing object per recipe incl. market/sell fields
+  for (const r of data.products.recipes) {
+    if (!r.pricing) r.pricing = {};
+    if (r.pricing.marketGross == null) r.pricing.marketGross = null;
+    if (r.pricing.sellGross == null) r.pricing.sellGross = null;
+  }
+
   if (!data.costModel) {
     data.costModel = {
       fixedCostsMonthly: { standard: {}, custom: [] },
@@ -200,7 +219,7 @@ function ensureDataShape() {
   if (!data.costModel.fixedCostsMonthly.standard) data.costModel.fixedCostsMonthly.standard = {};
   if (!Array.isArray(data.costModel.fixedCostsMonthly.custom)) data.costModel.fixedCostsMonthly.custom = [];
   if (!data.costModel.volumeAssumptions) {
-    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerMonth: null };
+    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerOpenDay: null };
   }
 
   migrateIngredientBaseUnits();
@@ -280,7 +299,7 @@ function openIngredientModalEdit(id) {
 }
 function saveIngredientFromModal() {
   const name = (fName.value || "").trim();
-  const baseUnit = (fUnit.value || "").trim(); // kg/l/pc
+  const baseUnit = (fUnit.value || "").trim();
   const price = normalizeNumber(fPrice.value);
   const supplier = (fSupplier.value || "").trim();
   const notes = (fNotes.value || "").trim();
@@ -433,7 +452,6 @@ function ingredientOptionsHtml(selectedId) {
   ].join("");
 }
 function makeUnitSelectHtml(selectedUnit) {
-  // per portion: g/ml/pc
   const units = ["g", "ml", "pc"];
   return units.map((u) => `<option value="${u}" ${u === selectedUnit ? "selected" : ""}>${u}</option>`).join("");
 }
@@ -529,7 +547,7 @@ function readRecipeFromModal() {
   const vatCategory = (rVat.value || "food").trim();
   if (!name) return { ok: false, error: "Name ist erforderlich." };
 
-  // target € optional (only needed for € mode)
+  // target € optional
   let targetEuro = null;
   const tRaw = String(rTargetDB.value || "").trim();
   if (tRaw !== "") {
@@ -576,7 +594,7 @@ function readRecipeFromModal() {
       vatCategory,
       lossPercent: lossPercent != null ? lossPercent : undefined,
       packagingSetId: packSetId,
-      pricing: { targetDBEuro: targetEuro },
+      pricing: { targetDBEuro: targetEuro }, // market/sell remain in existing object
       ingredients,
       notes: ""
     }
@@ -587,12 +605,21 @@ function saveRecipeFromModal() {
   const parsed = readRecipeFromModal();
   if (!parsed.ok) return showRecError(parsed.error);
 
-  if (recModalMode === "add") data.products.recipes.push({ id: uid("rec"), ...parsed.recipe });
-  else {
+  if (recModalMode === "add") {
+    data.products.recipes.push({
+      id: uid("rec"),
+      ...parsed.recipe,
+      pricing: { ...(parsed.recipe.pricing || {}), marketGross: null, sellGross: null }
+    });
+  } else {
     const idx = data.products.recipes.findIndex((x) => x.id === editingRecId);
     if (idx >= 0) {
       const prev = data.products.recipes[idx];
       const mergedPricing = { ...(prev.pricing || {}), ...(parsed.recipe.pricing || {}) };
+      // keep market/sell
+      if (mergedPricing.marketGross == null) mergedPricing.marketGross = prev?.pricing?.marketGross ?? null;
+      if (mergedPricing.sellGross == null) mergedPricing.sellGross = prev?.pricing?.sellGross ?? null;
+
       data.products.recipes[idx] = { ...prev, ...parsed.recipe, id: editingRecId, pricing: mergedPricing };
     }
   }
@@ -631,6 +658,7 @@ function renderCalcOptions() {
   if (current && list.some((r) => r.id === current)) calcRecipeSelect.value = current;
   else calcRecipeSelect.value = list[0].id;
 }
+
 function syncCalcModeUI() {
   const mode = data.settings.calc.mode;
   if (mode === "pct") {
@@ -642,17 +670,38 @@ function syncCalcModeUI() {
   }
 }
 
+function setMarketSellInputsFromRecipe(recipe) {
+  const mg = recipe?.pricing?.marketGross;
+  const sg = recipe?.pricing?.sellGross;
+
+  calcMarketGross.value = (Number.isFinite(Number(mg)) && Number(mg) > 0) ? String(mg).replace(".", ",") : "";
+  calcSellGross.value = (Number.isFinite(Number(sg)) && Number(sg) > 0) ? String(sg).replace(".", ",") : "";
+}
+
+function clearMarketSellOutputs() {
+  calcDiffMin.textContent = "—";
+  calcDiffMarket.textContent = "—";
+  calcSellNet.textContent = "—";
+  calcSellDb.textContent = "—";
+}
+
 function renderCalc() {
+  // reset
   const fields = [
     calcCostIngredients, calcCostPackaging, calcCostFixed, calcCostTotal,
-    calcTargetDB, calcVat, calcGrossRounded, calcNetImplied, calcDbEuro, calcDbPct
+    calcTargetDB, calcVat, calcGrossRounded, calcNetImplied,
+    calcDbEuro, calcDbPct
   ];
   for (const el of fields) el.textContent = "—";
   setCalcError("");
+  clearMarketSellOutputs();
 
   const id = calcRecipeSelect.value;
   const r = (data.products.recipes || []).find((x) => x.id === id);
   if (!r) return setCalcError("Bitte ein Rezept auswählen.");
+
+  // keep inputs in sync
+  setMarketSellInputsFromRecipe(r);
 
   const costRes = calcCostResult(data, "recipe", r, "de");
   if (!costRes.ok) return setCalcError((costRes.errors || []).join(" "));
@@ -665,6 +714,10 @@ function renderCalc() {
   calcVat.textContent = `${getVatLabel(out.vatCategory)} (${Math.round(out.vatRate * 100)}%)`;
 
   const mode = data.settings.calc.mode;
+
+  // min price from mode
+  let minGross = NaN;
+  let minNet = NaN;
 
   if (mode === "pct") {
     const pct = Number(data.settings.calc.targetDbPct);
@@ -681,10 +734,13 @@ function renderCalc() {
     calcGrossRounded.textContent = formatEuro(price.grossRounded);
     calcNetImplied.textContent = formatEuro(price.netImplied);
 
-    const dbEuro = price.netImplied - out.costs.totalCostPerPortion;
-    const dbPctV = price.netImplied > 0 ? dbEuro / price.netImplied : 0;
-    calcDbEuro.textContent = formatEuro(dbEuro);
-    calcDbPct.textContent = formatPct(dbPctV);
+    const dbEuroMin = price.netImplied - out.costs.totalCostPerPortion;
+    const dbPctMin = price.netImplied > 0 ? dbEuroMin / price.netImplied : 0;
+    calcDbEuro.textContent = formatEuro(dbEuroMin);
+    calcDbPct.textContent = formatPct(dbPctMin);
+
+    minGross = price.grossRounded;
+    minNet = price.netImplied;
   } else {
     const resEuro = calcProductResult(data, "recipe", r, "de");
     if (!resEuro.ok) return setCalcError((resEuro.errors || []).join(" "));
@@ -696,6 +752,37 @@ function renderCalc() {
 
     calcDbEuro.textContent = formatEuro(p.dbEuro);
     calcDbPct.textContent = formatPct(p.dbPct);
+
+    minGross = p.grossRounded;
+    minNet = p.netImplied;
+  }
+
+  // market/sell compare
+  const marketGross = Number(r?.pricing?.marketGross);
+  const sellGross = Number(r?.pricing?.sellGross);
+
+  if (Number.isFinite(sellGross) && sellGross > 0) {
+    const sellNetV = sellGross / (1 + out.vatRate);
+    const dbEuroSell = sellNetV - out.costs.totalCostPerPortion;
+    const dbPctSell = sellNetV > 0 ? dbEuroSell / sellNetV : 0;
+
+    calcSellNet.textContent = formatEuro(sellNetV);
+    calcSellDb.textContent = `${formatEuro(dbEuroSell)}  |  ${formatPct(dbPctSell)}`;
+
+    if (Number.isFinite(minGross)) {
+      calcDiffMin.textContent = formatEuroSigned(sellGross - minGross);
+    }
+    if (Number.isFinite(marketGross) && marketGross > 0) {
+      calcDiffMarket.textContent = formatEuroSigned(sellGross - marketGross);
+    } else {
+      calcDiffMarket.textContent = "—";
+    }
+  } else {
+    // no sell price entered: still show diff placeholders
+    calcSellNet.textContent = "—";
+    calcSellDb.textContent = "—";
+    calcDiffMin.textContent = "—";
+    calcDiffMarket.textContent = "—";
   }
 }
 
@@ -761,6 +848,7 @@ recForm.addEventListener("submit", (e) => {
 // Kalkulation
 calcRecipeSelect?.addEventListener("change", renderCalc);
 btnCalcRefresh?.addEventListener("click", renderCalc);
+
 calcMode?.addEventListener("change", () => {
   data.settings.calc.mode = calcMode.value;
   saveData(data);
@@ -775,6 +863,25 @@ calcDbPctInput?.addEventListener("input", () => {
     renderCalc();
   }
 });
+
+// NEW: market/sell input handlers (stored per recipe)
+function updateRecipePricingField(field, rawValue) {
+  const id = calcRecipeSelect.value;
+  const r = (data.products.recipes || []).find((x) => x.id === id);
+  if (!r) return;
+
+  if (!r.pricing) r.pricing = {};
+
+  const v = normalizeNumber(rawValue);
+  if (rawValue.trim() === "") r.pricing[field] = null;
+  else r.pricing[field] = (Number.isFinite(v) && v > 0) ? v : null;
+
+  saveData(data);
+  renderCalc();
+}
+
+calcMarketGross?.addEventListener("input", () => updateRecipePricingField("marketGross", calcMarketGross.value));
+calcSellGross?.addEventListener("input", () => updateRecipePricingField("sellGross", calcSellGross.value));
 
 // Export/Import/Reset
 btnExport?.addEventListener("click", () => {
