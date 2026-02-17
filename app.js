@@ -11,6 +11,11 @@ const btnExport = $("btnExport");
 const fileImport = $("fileImport");
 const btnReset = $("btnReset");
 
+/* NEW CSV */
+const btnExportIngredientsCsv = $("btnExportIngredientsCsv");
+const btnExportRecipesCsv = $("btnExportRecipesCsv");
+const fileImportCsv = $("fileImportCsv");
+
 /* Tabs */
 const tabButtons = Array.from(document.querySelectorAll(".tab"));
 const panels = Array.from(document.querySelectorAll("[data-panel]"));
@@ -57,6 +62,11 @@ const recSearch = $("recSearch");
 const btnAddRecipe = $("btnAddRecipe");
 const recTbody = $("recTbody");
 const recEmpty = $("recEmpty");
+
+/* NEW: Recipes view */
+const recipeViewMode = $("recipeViewMode");
+const recipesTableWrap = $("recipesTableWrap");
+const recipeCards = $("recipeCards");
 
 /* Rezept Modal */
 const recModal = $("recModal");
@@ -165,6 +175,98 @@ function getVatLabel(vatCategory) {
   return vatCategory === "drink" ? "Drink (19%)" : "Food (7%)";
 }
 
+/* =========================
+   CSV helpers (semicolon)
+   - robust enough for Excel exports
+   - supports quoted fields "..."
+   ========================= */
+
+function parseCsvSemicolon(text) {
+  const s = String(text ?? "");
+  const rows = [];
+  let row = [];
+  let cur = "";
+  let inQuotes = false;
+
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    const next = s[i + 1];
+
+    if (inQuotes) {
+      if (ch === '"' && next === '"') { // escaped quote
+        cur += '"';
+        i++;
+      } else if (ch === '"') {
+        inQuotes = false;
+      } else {
+        cur += ch;
+      }
+      continue;
+    }
+
+    if (ch === '"') {
+      inQuotes = true;
+      continue;
+    }
+
+    if (ch === ";") {
+      row.push(cur);
+      cur = "";
+      continue;
+    }
+
+    if (ch === "\r") continue;
+
+    if (ch === "\n") {
+      row.push(cur);
+      rows.push(row);
+      row = [];
+      cur = "";
+      continue;
+    }
+
+    cur += ch;
+  }
+
+  // last field
+  row.push(cur);
+  rows.push(row);
+
+  // drop empty trailing lines
+  while (rows.length && rows[rows.length - 1].every((c) => String(c).trim() === "")) rows.pop();
+
+  if (rows.length === 0) return { headers: [], items: [] };
+
+  const headers = rows[0].map((h) => String(h).trim());
+  const items = rows.slice(1).map((cells) => {
+    const obj = {};
+    headers.forEach((h, idx) => {
+      obj[h] = (cells[idx] ?? "").toString().trim();
+    });
+    return obj;
+  });
+  return { headers, items };
+}
+
+function csvEscape(v) {
+  const s = String(v ?? "");
+  if (s.includes('"') || s.includes(";") || s.includes("\n")) {
+    return `"${s.replaceAll('"', '""')}"`;
+  }
+  return s;
+}
+
+function downloadCsv(filename, rows) {
+  const content = rows.map((r) => r.map(csvEscape).join(";")).join("\n");
+  const blob = new Blob([content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
 /** MIGRATION: old ingredient baseUnit g->kg, ml->l (price adjusted) */
 function migrateIngredientBaseUnits() {
   const ings = data?.catalog?.ingredients || [];
@@ -223,7 +325,7 @@ function ensureDataShape() {
   if (!data.costModel.fixedCostsMonthly.standard) data.costModel.fixedCostsMonthly.standard = {};
   if (!Array.isArray(data.costModel.fixedCostsMonthly.custom)) data.costModel.fixedCostsMonthly.custom = [];
   if (!data.costModel.volumeAssumptions) {
-    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerMonth: null };
+    data.costModel.volumeAssumptions = { openDaysPerMonth: 12, expectedPortionsPerOpenDay: 80, overrideExpectedPortionsPerOpenDay: null };
   }
 
   migrateIngredientBaseUnits();
@@ -518,6 +620,36 @@ function fillPackagingSetOptions(selectedId) {
   if (!rPackSet.value && sets.length > 0) rPackSet.value = sets[0].id;
 }
 
+function renderRecipeCards(list) {
+  if (!recipeCards) return;
+  recipeCards.innerHTML = "";
+  for (const r of list) {
+    const div = document.createElement("div");
+    div.className = "recipeCard";
+    const target = r?.pricing?.targetDBEuro;
+    div.innerHTML = `
+      <h4>${escapeHtml(r.name)}</h4>
+      <div class="recipeMeta">${escapeHtml(getVatLabel(r.vatCategory))}</div>
+      <div class="recipeMeta">Ziel-Überschuss: ${
+        (Number.isFinite(Number(target)) && Number(target) > 0) ? escapeHtml(formatEuro(target)) : "—"
+      }</div>
+      <button class="btn" data-rec="edit" data-id="${r.id}">Bearbeiten</button>
+    `;
+    recipeCards.appendChild(div);
+  }
+}
+
+function syncRecipeViewModeUI() {
+  const mode = recipeViewMode?.value || "table";
+  if (mode === "cards") {
+    recipesTableWrap?.classList.add("hidden");
+    recipeCards?.classList.remove("hidden");
+  } else {
+    recipesTableWrap?.classList.remove("hidden");
+    recipeCards?.classList.add("hidden");
+  }
+}
+
 function renderRecipes() {
   const listAll = data.products.recipes || [];
   const list = getFilteredRecipes();
@@ -535,6 +667,9 @@ function renderRecipes() {
     `;
     recTbody.appendChild(tr);
   }
+
+  renderRecipeCards(list);
+  syncRecipeViewModeUI();
 
   renderCalcOptions();
   renderCalc();
@@ -860,11 +995,22 @@ fc_other?.addEventListener("blur", handleCostsStdBlur);
 // Rezepte
 btnAddRecipe?.addEventListener("click", openRecipeModalAdd);
 recSearch?.addEventListener("input", renderRecipes);
+
+recipeViewMode?.addEventListener("change", () => {
+  syncRecipeViewModeUI();
+});
+
 recTbody.addEventListener("click", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
   if (t.dataset.rec === "edit") openRecipeModalEdit(t.dataset.id);
 });
+recipeCards?.addEventListener("click", (e) => {
+  const t = e.target;
+  if (!(t instanceof HTMLElement)) return;
+  if (t.dataset.rec === "edit") openRecipeModalEdit(t.dataset.id);
+});
+
 btnAddRecIng?.addEventListener("click", (e) => { e.preventDefault(); addRecIngredientLine(); });
 recIngTbody.addEventListener("click", (e) => {
   const t = e.target;
@@ -959,7 +1105,7 @@ calcSellGross?.addEventListener("blur", () => {
   calcSellGross.value = (Number.isFinite(v) && v > 0) ? String(v).replace(".", ",") : "";
 });
 
-// Export/Import/Reset
+// Export/Import/Reset JSON
 btnExport?.addEventListener("click", () => {
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
@@ -984,6 +1130,175 @@ btnReset?.addEventListener("click", () => {
   initFromData();
 });
 
+/* =========================
+   CSV Export / Import
+   ========================= */
+
+btnExportIngredientsCsv?.addEventListener("click", () => {
+  const rows = [
+    ["ID_Zutat","Name","Food/Drink","BaseUnit","Preis_pro_BaseUnit_EUR","Vendor","Notizen"]
+  ];
+
+  for (const ing of (data.catalog.ingredients || [])) {
+    rows.push([
+      ing.id || "",
+      ing.name || "",
+      "", // Food/Drink currently recipe-level; keep column for your Excel convenience
+      (ing.baseUnit || "kg"),
+      (Number(ing.pricePerBaseUnit) || 0).toString().replace(".", ","),
+      ing.supplier || "",
+      ing.notes || ""
+    ]);
+  }
+
+  downloadCsv("ingredients.csv", rows);
+});
+
+btnExportRecipesCsv?.addEventListener("click", () => {
+  const rows = [
+    ["Recipe_ID","Recipe_Name","VatCategory","LossPct","PackagingSetId","TargetDBEuro","Ingredient_ID","Qty","Unit"]
+  ];
+
+  for (const r of (data.products.recipes || [])) {
+    const lossPct = (r.lossPercent != null && Number.isFinite(Number(r.lossPercent)))
+      ? String(Number(r.lossPercent) * 100).replace(".", ",")
+      : "";
+    const target = (r.pricing?.targetDBEuro != null && Number.isFinite(Number(r.pricing.targetDBEuro)))
+      ? String(Number(r.pricing.targetDBEuro)).replace(".", ",")
+      : "";
+
+    for (const line of (r.ingredients || [])) {
+      rows.push([
+        r.id || "",
+        r.name || "",
+        r.vatCategory || "food",
+        lossPct,
+        r.packagingSetId || "pack_default",
+        target,
+        line.ingredientId || "",
+        String(line.qty ?? "").replace(".", ","),
+        line.unit || "g"
+      ]);
+    }
+  }
+
+  downloadCsv("recipes.csv", rows);
+});
+
+fileImportCsv?.addEventListener("change", async (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const text = await file.text();
+  const { headers, items } = parseCsvSemicolon(text);
+
+  const hasIngredientsHeader = headers.includes("ID_Zutat") && headers.includes("Preis_pro_BaseUnit_EUR");
+  const hasRecipesHeader = headers.includes("Recipe_ID") && headers.includes("Ingredient_ID") && headers.includes("Qty");
+
+  // IMPORT: Ingredients
+  if (hasIngredientsHeader) {
+    for (const row of items) {
+      const id = (row["ID_Zutat"] || "").trim();
+      const name = (row["Name"] || "").trim();
+      if (!id || !name) continue;
+
+      const baseUnit = ((row["BaseUnit"] || "kg").trim() || "kg").toLowerCase();
+      const price = normalizeNumber(row["Preis_pro_BaseUnit_EUR"]);
+      const supplier = (row["Vendor"] || "").trim();
+      const notes = (row["Notizen"] || "").trim();
+
+      // only allow kg/l/pc to keep engine assumptions
+      const unitSafe = (baseUnit === "kg" || baseUnit === "l" || baseUnit === "pc") ? baseUnit : "kg";
+
+      const obj = {
+        id,
+        name,
+        baseUnit: unitSafe,
+        pricePerBaseUnit: Number.isFinite(price) ? price : 0,
+        supplier,
+        notes
+      };
+
+      const existing = (data.catalog.ingredients || []).find((x) => x.id === id);
+      if (existing) Object.assign(existing, obj);
+      else data.catalog.ingredients.push(obj);
+    }
+  }
+
+  // IMPORT: Recipes (long format)
+  if (hasRecipesHeader) {
+    const grouped = new Map();
+
+    for (const row of items) {
+      const recipeId = (row["Recipe_ID"] || "").trim();
+      const recipeName = (row["Recipe_Name"] || "").trim();
+
+      if (!recipeId || !recipeName) continue;
+
+      if (!grouped.has(recipeId)) {
+        const vatCategoryRaw = (row["VatCategory"] || "food").trim().toLowerCase();
+        const vatCategory = (vatCategoryRaw === "drink") ? "drink" : "food";
+
+        const lossPctRaw = String(row["LossPct"] || "").trim();
+        let lossPercent = undefined;
+        if (lossPctRaw !== "") {
+          const lp = normalizeNumber(lossPctRaw);
+          if (Number.isFinite(lp) && lp >= 0) lossPercent = lp / 100;
+        }
+
+        const targetRaw = String(row["TargetDBEuro"] || "").trim();
+        let targetDBEuro = null;
+        if (targetRaw !== "") {
+          const t = normalizeNumber(targetRaw);
+          if (Number.isFinite(t) && t > 0) targetDBEuro = t;
+        }
+
+        grouped.set(recipeId, {
+          id: recipeId,
+          name: recipeName,
+          vatCategory,
+          lossPercent,
+          packagingSetId: (row["PackagingSetId"] || "pack_default").trim() || "pack_default",
+          pricing: { targetDBEuro, marketGross: null, sellGross: null },
+          ingredients: [],
+          notes: ""
+        });
+      }
+
+      const rec = grouped.get(recipeId);
+
+      const ingredientId = (row["Ingredient_ID"] || "").trim();
+      const qty = normalizeNumber(row["Qty"]);
+      const unitRaw = (row["Unit"] || "g").trim().toLowerCase();
+      const unit = (unitRaw === "ml" || unitRaw === "pc" || unitRaw === "g") ? unitRaw : "g";
+
+      if (!ingredientId) continue;
+      if (!Number.isFinite(qty) || qty <= 0) continue;
+
+      rec.ingredients.push({ ingredientId, qty, unit });
+    }
+
+    for (const rec of grouped.values()) {
+      if (!rec.ingredients.length) continue;
+
+      const existing = (data.products.recipes || []).find((x) => x.id === rec.id);
+      if (existing) {
+        // keep market/sell if present on existing
+        const prevPricing = existing.pricing || {};
+        rec.pricing.marketGross = prevPricing.marketGross ?? rec.pricing.marketGross;
+        rec.pricing.sellGross = prevPricing.sellGross ?? rec.pricing.sellGross;
+        Object.assign(existing, rec);
+      } else {
+        data.products.recipes.push(rec);
+      }
+    }
+  }
+
+  saveData(data);
+  initFromData();
+  fileImportCsv.value = "";
+});
+
 /* init */
 function initFromData() {
   ensureDataShape();
@@ -1004,6 +1319,9 @@ function initFromData() {
 
   const r = getSelectedRecipe();
   if (r) setMarketSellInputsFromRecipe(r);
+
+  // default recipe view
+  syncRecipeViewModeUI();
 
   renderCalc();
 }
