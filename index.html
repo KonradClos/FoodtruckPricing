@@ -22,10 +22,21 @@
 
       <div class="sideActions">
         <button id="btnExport" class="btn" type="button">Export JSON</button>
+
         <label class="btn" style="display:block; text-align:center; cursor:pointer;">
           Import JSON
           <input id="fileImport" type="file" accept="application/json" style="display:none;">
         </label>
+
+        <!-- CSV -->
+        <button id="btnExportIngredientsCsv" class="btn" type="button">Export CSV Zutaten</button>
+        <button id="btnExportRecipesCsv" class="btn" type="button">Export CSV Rezepte</button>
+
+        <label class="btn" style="display:block; text-align:center; cursor:pointer;">
+          Import CSV
+          <input id="fileImportCsv" type="file" accept=".csv,text/csv" style="display:none;">
+        </label>
+
         <button id="btnReset" class="btn btnDanger" type="button">Reset</button>
       </div>
     </aside>
@@ -116,6 +127,13 @@
           <h2>Rezepte</h2>
           <div class="panelActions">
             <input id="recSearch" class="input" placeholder="Suche (Rezeptname)" />
+
+            <!-- NEW: Ansicht -->
+            <select id="recipeViewMode" class="input" style="min-width:150px;">
+              <option value="table">Tabelle</option>
+              <option value="cards">Karten</option>
+            </select>
+
             <button id="btnAddRecipe" class="btn" type="button">+ Rezept</button>
           </div>
         </div>
@@ -129,7 +147,7 @@
           Noch keine Rezepte. Lege zuerst ein Rezept an.
         </div>
 
-        <div class="tableWrap">
+        <div id="recipesTableWrap" class="tableWrap">
           <table class="table">
             <thead>
               <tr>
@@ -142,6 +160,9 @@
             <tbody id="recTbody"></tbody>
           </table>
         </div>
+
+        <!-- NEW: Rezeptkarten (nur Ansicht) -->
+        <div id="recipeCards" class="recipeCards hidden"></div>
       </section>
 
       <!-- Rezept Modal -->
